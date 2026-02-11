@@ -5,7 +5,7 @@ export default async (req, context) => {
   }
 
   try {
-    const apiKey = Netlify.env.get('GOOGLE_API_KEY');
+    const apiKey = process.env.GOOGLE_API_KEY;
 
     if (!apiKey) {
       console.error('Google API Key fehlt');
