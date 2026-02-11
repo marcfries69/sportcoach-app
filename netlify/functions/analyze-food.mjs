@@ -1,40 +1,39 @@
-// Netlify Function für Google Gemini - MIT HEALTH SCORE
-const handler = async (event) => {
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, body: 'Method not allowed' };
+export default async (req, context) => {
+  if (req.method !== 'POST') {
+    return new Response('Method not allowed', { status: 405 });
   }
 
   try {
-    const apiKey = process.env.GOOGLE_API_KEY;
+    // V2 Netlify Functions: Netlify.env.get()
+    // Fallback auf process.env falls Netlify global nicht existiert
+    const apiKey = typeof Netlify !== 'undefined'
+      ? Netlify.env.get('GOOGLE_API_KEY')
+      : process.env.GOOGLE_API_KEY;
 
     if (!apiKey) {
-      console.error('Google API Key fehlt');
-      return {
-        statusCode: 500,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'API Key nicht konfiguriert' })
-      };
+      return new Response(
+        JSON.stringify({
+          error: 'API Key nicht konfiguriert',
+          debug: typeof Netlify !== 'undefined' ? 'Netlify global exists' : 'Netlify global missing'
+        }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
-    const { foodText } = JSON.parse(event.body);
+    const { foodText } = await req.json();
 
     if (!foodText) {
-      return {
-        statusCode: 400,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Keine Lebensmittel-Eingabe' })
-      };
+      return new Response(
+        JSON.stringify({ error: 'Keine Lebensmittel-Eingabe' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
     }
-
-    console.log('Analysiere:', foodText);
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{
             parts: [{
@@ -92,17 +91,14 @@ Antworte NUR mit einem JSON-Objekt in diesem exakten Format, ohne weitere Erklä
 
     if (!response.ok) {
       const errorData = await response.json();
-      console.error('Gemini API Error:', errorData);
-      return {
-        statusCode: response.status,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: errorData.error?.message || 'API-Fehler' })
-      };
+      return new Response(
+        JSON.stringify({ error: errorData.error?.message || 'API-Fehler' }),
+        { status: response.status, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
     const data = await response.json();
     const text = data.candidates[0].content.parts[0].text.trim();
-
     const jsonText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const parsed = JSON.parse(jsonText);
 
@@ -122,25 +118,15 @@ Antworte NUR mit einem JSON-Objekt in diesem exakten Format, ohne weitere Erklä
       healthExplanation: parsed.healthExplanation || 'Keine Bewertung verfügbar'
     };
 
-    console.log('Erfolgreich:', result.name, '- Health Score:', result.healthScore);
-
-    return {
-      statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      },
-      body: JSON.stringify(result)
-    };
+    return new Response(
+      JSON.stringify(result),
+      { status: 200, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+    );
 
   } catch (error) {
-    console.error('Function Error:', error);
-    return {
-      statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: error.message || 'Unbekannter Fehler' })
-    };
+    return new Response(
+      JSON.stringify({ error: error.message || 'Unbekannter Fehler' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    );
   }
 };
-
-module.exports = { handler };
