@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Activity, TrendingUp, Calculator, LogOut } from 'lucide-react';
 import MealInput from './MealInput';
 import MealList from './MealList';
@@ -7,30 +7,79 @@ import EnergyBalance from './EnergyBalance';
 import ActivityList from './ActivityList';
 import NutritionCoach from './NutritionCoach';
 import RedSWarning from './RedSWarning';
+import { loadMeals, saveMeal, deleteMeal, deleteAllMealsForDate } from '../lib/meals';
+import { loadCalorieGoal, saveCalorieGoal } from '../lib/userSettings';
 
 const Dashboard = ({ user, onLogout }) => {
   const [meals, setMeals] = useState([]);
   const [calorieGoal, setCalorieGoal] = useState(2000);
   const [showCalculator, setShowCalculator] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const handleMealAdded = (newMeal) => {
+  // Daten aus Supabase laden beim Start
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const [mealsResult, goalResult] = await Promise.all([
+          loadMeals(user.id),
+          loadCalorieGoal(user.id),
+        ]);
+
+        if (mealsResult.data) {
+          setMeals(mealsResult.data);
+        }
+        setCalorieGoal(goalResult.calorieGoal);
+      } catch (err) {
+        console.error('Daten laden fehlgeschlagen:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadData();
+  }, [user.id]);
+
+  const handleMealAdded = async (newMeal) => {
+    // Optimistic Update: UI sofort aktualisieren
     setMeals(prev => [...prev, newMeal]);
+
+    // Im Hintergrund in Supabase speichern
+    const { error } = await saveMeal(user.id, newMeal);
+    if (error) {
+      console.error('Mahlzeit speichern fehlgeschlagen:', error);
+    }
   };
 
-  const handleDeleteMeal = (id) => {
+  const handleDeleteMeal = async (id) => {
     setMeals(prev => prev.filter(m => m.id !== id));
+
+    const { error } = await deleteMeal(user.id, id);
+    if (error) {
+      console.error('Mahlzeit löschen fehlgeschlagen:', error);
+    }
   };
 
-  const handleNewDay = () => {
+  const handleNewDay = async () => {
     if (meals.length > 0 && !window.confirm('Möchtest du wirklich alle Mahlzeiten löschen und einen neuen Tag beginnen?')) {
       return;
     }
     setMeals([]);
+
+    const { error } = await deleteAllMealsForDate(user.id);
+    if (error) {
+      console.error('Tag zurücksetzen fehlgeschlagen:', error);
+    }
   };
 
-  const handleAcceptGoal = (goal) => {
+  const handleAcceptGoal = async (goal) => {
     setCalorieGoal(goal);
     setShowCalculator(false);
+
+    const { error } = await saveCalorieGoal(user.id, goal);
+    if (error) {
+      console.error('Kalorienziel speichern fehlgeschlagen:', error);
+    }
   };
 
   const totals = meals.reduce((acc, meal) => ({
@@ -40,6 +89,17 @@ const Dashboard = ({ user, onLogout }) => {
     fat: acc.fat + (meal.fat || 0),
     fiber: acc.fiber + (meal.fiber || 0)
   }), { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-orange-50 to-rose-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 rounded-full border-4 border-orange-500 border-t-transparent animate-spin mx-auto mb-4" />
+          <p className="text-slate-600 font-medium">Daten werden geladen...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-orange-50 to-rose-50 p-4 md:p-8 font-sans">
