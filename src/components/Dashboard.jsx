@@ -133,6 +133,9 @@ const Dashboard = ({ user, onLogout }) => {
         <div className="text-center mb-8">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 text-sm text-slate-500">
+              {user.avatar && (
+                <img src={user.avatar} alt="" className="w-8 h-8 rounded-full object-cover" />
+              )}
               <span>Hallo, {user.name}</span>
             </div>
             <button
