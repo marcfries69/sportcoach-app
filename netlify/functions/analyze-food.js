@@ -1,7 +1,7 @@
 // Netlify Function für Google Gemini - MIT HEALTH SCORE
-export default async (req, context) => {
-  if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 });
+const handler = async (event) => {
+  if (event.httpMethod !== 'POST') {
+    return { statusCode: 405, body: 'Method not allowed' };
   }
 
   try {
@@ -9,19 +9,21 @@ export default async (req, context) => {
 
     if (!apiKey) {
       console.error('Google API Key fehlt');
-      return new Response(
-        JSON.stringify({ error: 'API Key nicht konfiguriert' }),
-        { status: 500, headers: { 'Content-Type': 'application/json' } }
-      );
+      return {
+        statusCode: 500,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'API Key nicht konfiguriert' })
+      };
     }
 
-    const { foodText } = await req.json();
+    const { foodText } = JSON.parse(event.body);
 
     if (!foodText) {
-      return new Response(
-        JSON.stringify({ error: 'Keine Lebensmittel-Eingabe' }),
-        { status: 400, headers: { 'Content-Type': 'application/json' } }
-      );
+      return {
+        statusCode: 400,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: 'Keine Lebensmittel-Eingabe' })
+      };
     }
 
     console.log('Analysiere:', foodText);
@@ -91,10 +93,11 @@ Antworte NUR mit einem JSON-Objekt in diesem exakten Format, ohne weitere Erklä
     if (!response.ok) {
       const errorData = await response.json();
       console.error('Gemini API Error:', errorData);
-      return new Response(
-        JSON.stringify({ error: errorData.error?.message || 'API-Fehler' }),
-        { status: response.status, headers: { 'Content-Type': 'application/json' } }
-      );
+      return {
+        statusCode: response.status,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ error: errorData.error?.message || 'API-Fehler' })
+      };
     }
 
     const data = await response.json();
@@ -121,22 +124,23 @@ Antworte NUR mit einem JSON-Objekt in diesem exakten Format, ohne weitere Erklä
 
     console.log('Erfolgreich:', result.name, '- Health Score:', result.healthScore);
 
-    return new Response(
-      JSON.stringify(result),
-      {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*'
-        }
-      }
-    );
+    return {
+      statusCode: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*'
+      },
+      body: JSON.stringify(result)
+    };
 
   } catch (error) {
     console.error('Function Error:', error);
-    return new Response(
-      JSON.stringify({ error: error.message || 'Unbekannter Fehler' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
+    return {
+      statusCode: 500,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: error.message || 'Unbekannter Fehler' })
+    };
   }
 };
+
+module.exports = { handler };
