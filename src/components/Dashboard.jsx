@@ -1,25 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, TrendingUp, Calculator, LogOut } from 'lucide-react';
+import { Activity, TrendingUp, Calculator, LogOut, LayoutDashboard, Brain, Heart } from 'lucide-react';
 import MealInput from './MealInput';
 import MealList from './MealList';
+import SupplementList from './SupplementList';
 import CalorieCalculator from './CalorieCalculator';
 import EnergyBalance from './EnergyBalance';
 import ActivityList from './ActivityList';
 import NutritionCoach from './NutritionCoach';
 import RedSWarning from './RedSWarning';
-import { loadMeals, saveMeal, deleteMeal, deleteAllMealsForDate } from '../lib/meals';
+import WhoopDashboard from './WhoopDashboard';
+import { loadMeals, saveMeal, deleteMeal } from '../lib/meals';
 import { loadCalorieGoal, saveCalorieGoal, loadBodyData, saveBodyData } from '../lib/userSettings';
 
 const Dashboard = ({ user, onLogout }) => {
-  const [meals, setMeals] = useState([]);
+  const [allMeals, setAllMeals] = useState([]);
   const [calorieGoal, setCalorieGoal] = useState(2000);
   const [bodyData, setBodyData] = useState(null);
   const [showCalculator, setShowCalculator] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('dashboard');
 
   // Aktivitäten-Kalorien (von ActivityList gemeldet)
   const [todayActivityKcal, setTodayActivityKcal] = useState(0);
   const [fiveDayActivityKcal, setFiveDayActivityKcal] = useState(0);
+  // Aktivitäten-Daten für Coach
+  const [activities, setActivities] = useState([]);
+
+  // Meals und Supplements trennen
+  const meals = allMeals.filter(m => !m.isSupplement);
+  const supplements = allMeals.filter(m => m.isSupplement);
 
   // Daten aus Supabase laden beim Start
   useEffect(() => {
@@ -33,7 +42,7 @@ const Dashboard = ({ user, onLogout }) => {
         ]);
 
         if (mealsResult.data) {
-          setMeals(mealsResult.data);
+          setAllMeals(mealsResult.data);
         }
         setCalorieGoal(goalResult.calorieGoal);
         if (bodyResult.data) {
@@ -50,7 +59,7 @@ const Dashboard = ({ user, onLogout }) => {
   }, [user.id]);
 
   const handleMealAdded = async (newMeal) => {
-    setMeals(prev => [...prev, newMeal]);
+    setAllMeals(prev => [...prev, newMeal]);
 
     const { error } = await saveMeal(user.id, newMeal);
     if (error) {
@@ -59,7 +68,7 @@ const Dashboard = ({ user, onLogout }) => {
   };
 
   const handleDeleteMeal = async (id) => {
-    setMeals(prev => prev.filter(m => m.id !== id));
+    setAllMeals(prev => prev.filter(m => m.id !== id));
 
     const { error } = await deleteMeal(user.id, id);
     if (error) {
@@ -67,17 +76,55 @@ const Dashboard = ({ user, onLogout }) => {
     }
   };
 
-  const handleNewDay = async () => {
-    if (meals.length > 0 && !window.confirm('Möchtest du wirklich alle Mahlzeiten löschen und einen neuen Tag beginnen?')) {
-      return;
-    }
-    setMeals([]);
+  // Auto-Tageswechsel: Bei Datumswechsel Mahlzeiten neu laden
+  useEffect(() => {
+    const checkDateChange = async () => {
+      const now = new Date();
+      const todayStr = now.getFullYear() + '-' +
+        String(now.getMonth() + 1).padStart(2, '0') + '-' +
+        String(now.getDate()).padStart(2, '0');
 
-    const { error } = await deleteAllMealsForDate(user.id);
-    if (error) {
-      console.error('Tag zurücksetzen fehlgeschlagen:', error);
-    }
-  };
+      const lastDate = localStorage.getItem('sportcoach_last_date');
+      if (lastDate && lastDate !== todayStr) {
+        // Neuer Tag - Mahlzeiten neu laden (loadMeals filtert nach heutigem Datum)
+        const { data } = await loadMeals(user.id);
+        setAllMeals(data || []);
+      }
+      localStorage.setItem('sportcoach_last_date', todayStr);
+    };
+
+    // Beim Fokus prüfen (Tab-Wechsel, App öffnen)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        checkDateChange();
+      }
+    };
+
+    // Timer für Mitternacht
+    const now = new Date();
+    const midnight = new Date(now);
+    midnight.setDate(midnight.getDate() + 1);
+    midnight.setHours(0, 1, 0, 0);
+    const msUntilMidnight = midnight - now;
+
+    const midnightTimer = setTimeout(async () => {
+      const { data } = await loadMeals(user.id);
+      setAllMeals(data || []);
+      localStorage.setItem('sportcoach_last_date',
+        new Date().getFullYear() + '-' +
+        String(new Date().getMonth() + 1).padStart(2, '0') + '-' +
+        String(new Date().getDate()).padStart(2, '0')
+      );
+    }, msUntilMidnight);
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    checkDateChange();
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      clearTimeout(midnightTimer);
+    };
+  }, [user.id]);
 
   const handleAcceptGoal = async (goal, newBodyData) => {
     setCalorieGoal(goal);
@@ -99,10 +146,11 @@ const Dashboard = ({ user, onLogout }) => {
     }
   };
 
-  // Callback von ActivityList: Aktivitäten-Kalorien melden
-  const handleActivityCalories = (todayKcal, totalKcal) => {
+  // Callback von ActivityList: Aktivitäten-Kalorien + Daten melden
+  const handleActivityCalories = (todayKcal, totalKcal, activityData) => {
     setTodayActivityKcal(todayKcal);
     setFiveDayActivityKcal(totalKcal);
+    if (activityData) setActivities(activityData);
   };
 
   const totals = meals.reduce((acc, meal) => ({
@@ -153,7 +201,7 @@ const Dashboard = ({ user, onLogout }) => {
 
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 text-sm text-slate-500">
               {user.avatar && (
@@ -169,120 +217,166 @@ const Dashboard = ({ user, onLogout }) => {
               Abmelden
             </button>
           </div>
-          <div className="inline-flex items-center gap-3 mb-4">
+          <div className="inline-flex items-center gap-3 mb-2">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-500 to-rose-500 flex items-center justify-center shadow-lg">
               <Activity className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-orange-600 to-rose-600 bg-clip-text text-transparent">
-              SportCoach V1
+              SportCoach V2
             </h1>
           </div>
-          <p className="text-slate-600">KI-gestützter Ernährungs- & Trainingscoach</p>
-          <div className="flex gap-3 justify-center mt-4">
-            <button
-              onClick={handleNewDay}
-              className="px-4 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium transition-colors"
-            >
-              Neuer Tag
-            </button>
-            <button
-              onClick={() => setShowCalculator(true)}
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white text-sm font-medium transition-all shadow-md flex items-center gap-2"
-            >
-              <Calculator className="w-4 h-4" />
-              Kalorienziel berechnen
-            </button>
-          </div>
+          <p className="text-slate-600 text-sm">KI-gestützter Ernährungs- & Trainingscoach</p>
         </div>
 
-        {/* Tages-Übersicht */}
-        <div className="glass rounded-3xl p-6 mb-6 shadow-xl">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex-1">
-              <h2 className="text-2xl font-bold text-slate-800 mb-1">Heute</h2>
-              <p className="text-slate-500 text-sm">{new Date().toLocaleDateString('de-DE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-5xl font-bold mono bg-gradient-to-r from-orange-500 to-rose-500 bg-clip-text text-transparent">
-                {Math.round(totals.kcal)}
-              </p>
-              <p className="text-slate-500 text-sm font-semibold uppercase tracking-wide">Kalorien</p>
-            </div>
-          </div>
+        {/* Tab-Navigation */}
+        <div className="flex gap-2 mb-6 bg-white/50 rounded-2xl p-1.5 backdrop-blur-sm border border-white/60">
+          {[
+            { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+            { id: 'coach', label: 'KI-Coach', icon: Brain },
+            { id: 'whoop', label: 'Whoop', icon: Heart },
+          ].map(tab => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold transition-all ${
+                  isActive
+                    ? 'bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-lg'
+                    : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
 
-          {/* Fortschrittsbalken */}
-          <div className="mb-6">
-            <div className="h-3 bg-slate-200 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-orange-500 to-rose-500 transition-all duration-500 ease-out rounded-full"
-                style={{ width: `${Math.min((totals.kcal / calorieGoal) * 100, 100)}%` }}
-              ></div>
+        {/* === DASHBOARD TAB === */}
+        {activeTab === 'dashboard' && (
+          <>
+            {/* Kalorienziel-Button */}
+            <div className="flex justify-center mb-6">
+              <button
+                onClick={() => setShowCalculator(true)}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white text-sm font-medium transition-all shadow-md flex items-center gap-2"
+              >
+                <Calculator className="w-4 h-4" />
+                Kalorienziel berechnen
+              </button>
             </div>
-            <div className="flex justify-between mt-2">
-              <span className="text-xs text-slate-500 font-medium">0 kcal</span>
-              <span className="text-xs text-slate-500 font-medium">{calorieGoal} kcal Ziel</span>
-            </div>
-          </div>
 
-          {/* Gesamtkalorien-Card */}
-          <div className="bg-gradient-to-br from-orange-50 to-rose-50 rounded-2xl p-6 mb-4 border border-orange-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-orange-600 text-xs font-semibold uppercase tracking-wide mb-1">Gesamtkalorien</p>
-                <p className="text-4xl font-bold text-orange-900 mono">{Math.round(totals.kcal)}</p>
-                <p className="text-sm text-orange-700 mt-1">
-                  {Math.round((totals.kcal / calorieGoal) * 100)}% des Tagesziels ({calorieGoal} kcal)
-                </p>
+            {/* Tages-Übersicht */}
+            <div className="glass rounded-3xl p-6 mb-6 shadow-xl">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex-1">
+                  <h2 className="text-2xl font-bold text-slate-800 mb-1">Heute</h2>
+                  <p className="text-slate-500 text-sm">{new Date().toLocaleDateString('de-DE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-5xl font-bold mono bg-gradient-to-r from-orange-500 to-rose-500 bg-clip-text text-transparent">
+                    {Math.round(totals.kcal)}
+                  </p>
+                  <p className="text-slate-500 text-sm font-semibold uppercase tracking-wide">Kalorien</p>
+                </div>
               </div>
-              <TrendingUp className="w-16 h-16 text-orange-200 opacity-50" />
+
+              {/* Fortschrittsbalken */}
+              <div className="mb-6">
+                <div className="h-3 bg-slate-200 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-orange-500 to-rose-500 transition-all duration-500 ease-out rounded-full"
+                    style={{ width: `${Math.min((totals.kcal / calorieGoal) * 100, 100)}%` }}
+                  ></div>
+                </div>
+                <div className="flex justify-between mt-2">
+                  <span className="text-xs text-slate-500 font-medium">0 kcal</span>
+                  <span className="text-xs text-slate-500 font-medium">{calorieGoal} kcal Ziel</span>
+                </div>
+              </div>
+
+              {/* Gesamtkalorien-Card */}
+              <div className="bg-gradient-to-br from-orange-50 to-rose-50 rounded-2xl p-6 mb-4 border border-orange-100">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-orange-600 text-xs font-semibold uppercase tracking-wide mb-1">Gesamtkalorien</p>
+                    <p className="text-4xl font-bold text-orange-900 mono">{Math.round(totals.kcal)}</p>
+                    <p className="text-sm text-orange-700 mt-1">
+                      {Math.round((totals.kcal / calorieGoal) * 100)}% des Tagesziels ({calorieGoal} kcal)
+                    </p>
+                  </div>
+                  <TrendingUp className="w-16 h-16 text-orange-200 opacity-50" />
+                </div>
+              </div>
+
+              {/* Makro-Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="stat-card bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
+                  <p className="text-blue-600 text-xs font-semibold uppercase tracking-wide mb-1">Protein</p>
+                  <p className="text-2xl font-bold text-blue-900 mono">{Math.round(totals.protein)}g</p>
+                </div>
+                <div className="stat-card bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl p-4 border border-amber-200">
+                  <p className="text-amber-600 text-xs font-semibold uppercase tracking-wide mb-1">Kohlenhydrate</p>
+                  <p className="text-2xl font-bold text-amber-900 mono">{Math.round(totals.carbs)}g</p>
+                </div>
+                <div className="stat-card bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
+                  <p className="text-purple-600 text-xs font-semibold uppercase tracking-wide mb-1">Fett</p>
+                  <p className="text-2xl font-bold text-purple-900 mono">{Math.round(totals.fat)}g</p>
+                </div>
+                <div className="stat-card bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
+                  <p className="text-green-600 text-xs font-semibold uppercase tracking-wide mb-1">Ballaststoffe</p>
+                  <p className="text-2xl font-bold text-green-900 mono">{Math.round(totals.fiber)}g</p>
+                </div>
+              </div>
             </div>
-          </div>
 
-          {/* Makro-Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="stat-card bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-4 border border-blue-200">
-              <p className="text-blue-600 text-xs font-semibold uppercase tracking-wide mb-1">Protein</p>
-              <p className="text-2xl font-bold text-blue-900 mono">{Math.round(totals.protein)}g</p>
-            </div>
-            <div className="stat-card bg-gradient-to-br from-amber-50 to-amber-100 rounded-xl p-4 border border-amber-200">
-              <p className="text-amber-600 text-xs font-semibold uppercase tracking-wide mb-1">Kohlenhydrate</p>
-              <p className="text-2xl font-bold text-amber-900 mono">{Math.round(totals.carbs)}g</p>
-            </div>
-            <div className="stat-card bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl p-4 border border-purple-200">
-              <p className="text-purple-600 text-xs font-semibold uppercase tracking-wide mb-1">Fett</p>
-              <p className="text-2xl font-bold text-purple-900 mono">{Math.round(totals.fat)}g</p>
-            </div>
-            <div className="stat-card bg-gradient-to-br from-green-50 to-green-100 rounded-xl p-4 border border-green-200">
-              <p className="text-green-600 text-xs font-semibold uppercase tracking-wide mb-1">Ballaststoffe</p>
-              <p className="text-2xl font-bold text-green-900 mono">{Math.round(totals.fiber)}g</p>
-            </div>
-          </div>
-        </div>
+            {/* Mahlzeiten-Liste */}
+            <MealList meals={meals} onDeleteMeal={handleDeleteMeal} />
 
-        {/* Mahlzeiten-Liste */}
-        <MealList meals={meals} onDeleteMeal={handleDeleteMeal} />
+            {/* Supplements-Liste */}
+            <SupplementList supplements={supplements} onDeleteSupplement={handleDeleteMeal} />
 
-        {/* Mahlzeiten-Eingabe (direkt unter der Liste) */}
-        <MealInput onMealAdded={handleMealAdded} />
+            {/* Mahlzeiten-Eingabe */}
+            <MealInput onMealAdded={handleMealAdded} />
 
-        {/* Energiebilanz */}
-        <EnergyBalance
-          bodyData={bodyData}
-          todayMealKcal={totals.kcal}
-          todayActivityKcal={todayActivityKcal}
-          fiveDayMealKcal={totals.kcal}
-          fiveDayActivityKcal={fiveDayActivityKcal}
-          onOpenCalculator={() => setShowCalculator(true)}
-        />
+            {/* Energiebilanz */}
+            <EnergyBalance
+              bodyData={bodyData}
+              todayMealKcal={totals.kcal}
+              todayActivityKcal={todayActivityKcal}
+              fiveDayMealKcal={totals.kcal}
+              fiveDayActivityKcal={fiveDayActivityKcal}
+              onOpenCalculator={() => setShowCalculator(true)}
+            />
 
-        {/* Aktivitäten */}
-        <ActivityList user={user} onActivityCalories={handleActivityCalories} />
+            {/* Aktivitäten */}
+            <ActivityList user={user} onActivityCalories={handleActivityCalories} />
 
-        {/* KI-Coach (Platzhalter) */}
-        <NutritionCoach />
+            {/* RED-S Warnung - nur bei Indikation */}
+            <RedSWarning
+              totals={totals}
+              bodyData={bodyData}
+              todayActivityKcal={todayActivityKcal}
+            />
+          </>
+        )}
 
-        {/* RED-S Warnung (Platzhalter) */}
-        <RedSWarning />
+        {/* === KI-COACH TAB === */}
+        {activeTab === 'coach' && (
+          <NutritionCoach
+            user={user}
+            activities={activities}
+            supplements={supplements}
+            bodyData={bodyData}
+          />
+        )}
+
+        {/* === WHOOP TAB === */}
+        {activeTab === 'whoop' && (
+          <WhoopDashboard user={user} />
+        )}
       </div>
 
       {/* Kalorienziel-Rechner Modal */}

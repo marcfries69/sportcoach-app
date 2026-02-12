@@ -43,6 +43,7 @@ export async function loadMeals(userId, date = getTodayDate()) {
     healthScore: row.health_score,
     healthExplanation: row.health_explanation,
     components: row.components || [],
+    isSupplement: row.is_supplement || false,
   }));
 
   return { data: meals, error: null };
@@ -72,6 +73,7 @@ export async function saveMeal(userId, meal) {
       health_score: meal.healthScore || null,
       health_explanation: meal.healthExplanation || null,
       components: meal.components || [],
+      is_supplement: meal.isSupplement || false,
     });
 
   if (error) {
@@ -103,22 +105,48 @@ export async function deleteMeal(userId, mealId) {
 }
 
 /**
- * Löscht alle Mahlzeiten eines Users für ein Datum ("Neuer Tag").
+ * Lädt Mahlzeiten eines Users für einen Zeitraum (für Coach-Analyse).
  */
-export async function deleteAllMealsForDate(userId, date = getTodayDate()) {
+export async function loadMealsForRange(userId, days = 5) {
   if (!supabase) {
-    return { error: null };
+    return { data: [], error: null };
   }
 
-  const { error } = await supabase
+  const endDate = getTodayDate();
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+  const startStr = startDate.getFullYear() + '-' +
+    String(startDate.getMonth() + 1).padStart(2, '0') + '-' +
+    String(startDate.getDate()).padStart(2, '0');
+
+  const { data, error } = await supabase
     .from('meals')
-    .delete()
+    .select('*')
     .eq('user_id', userId)
-    .eq('meal_date', date);
+    .gte('meal_date', startStr)
+    .lte('meal_date', endDate)
+    .order('created_at', { ascending: true });
 
   if (error) {
-    console.error('deleteAllMealsForDate error:', error);
+    console.error('loadMealsForRange error:', error);
+    return { data: null, error: error.message };
   }
 
-  return { error: error?.message || null };
+  const meals = data.map(row => ({
+    id: row.id,
+    time: row.time,
+    date: row.meal_date,
+    name: row.name,
+    kcal: row.kcal,
+    protein: row.protein,
+    carbs: row.carbs,
+    fat: row.fat,
+    fiber: row.fiber,
+    healthScore: row.health_score,
+    healthExplanation: row.health_explanation,
+    components: row.components || [],
+    isSupplement: row.is_supplement || false,
+  }));
+
+  return { data: meals, error: null };
 }

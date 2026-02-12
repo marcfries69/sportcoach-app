@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, RefreshCw, Clock, Flame, Mountain, Heart, TrendingUp, Zap } from 'lucide-react';
+import { Activity, RefreshCw, Clock, Flame, Mountain, Heart, TrendingUp, Zap, Plus, Minus } from 'lucide-react';
 
 // Sport-Typ Icons & Farben
 const SPORT_CONFIG = {
@@ -67,6 +67,7 @@ const ActivityList = ({ user, onActivityCalories }) => {
   const [error, setError] = useState(null);
   const [syncing, setSyncing] = useState(false);
   const [lastSync, setLastSync] = useState(null);
+  const [expanded, setExpanded] = useState(false);
 
   // Aktivitäten beim Laden der Komponente synchen (nur für Strava-User)
   useEffect(() => {
@@ -89,7 +90,7 @@ const ActivityList = ({ user, onActivityCalories }) => {
       const totalKcal = activities
         .reduce((sum, a) => sum + (a.calories || 0), 0);
 
-      onActivityCalories(todayKcal, totalKcal);
+      onActivityCalories(todayKcal, totalKcal, activities);
     }
   }, [activities]);
 
@@ -237,7 +238,7 @@ const ActivityList = ({ user, onActivityCalories }) => {
 
       {/* Aktivitäten-Liste */}
       <div className="space-y-3">
-        {activities.map((activity) => {
+        {(expanded ? activities.slice(0, 10) : activities.slice(0, 3)).map((activity) => {
           const config = getSportConfig(activity.type);
           const pace = formatPace(activity.average_speed, activity.type);
 
@@ -322,6 +323,26 @@ const ActivityList = ({ user, onActivityCalories }) => {
           );
         })}
       </div>
+
+      {/* Expand/Collapse Button */}
+      {activities.length > 3 && (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="w-full mt-4 py-3 rounded-2xl border-2 border-dashed border-slate-200 hover:border-orange-300 hover:bg-orange-50 text-slate-500 hover:text-orange-600 text-sm font-medium transition-all flex items-center justify-center gap-2"
+        >
+          {expanded ? (
+            <>
+              <Minus className="w-4 h-4" />
+              Weniger anzeigen
+            </>
+          ) : (
+            <>
+              <Plus className="w-4 h-4" />
+              {Math.min(activities.length - 3, 7)} weitere Aktivitäten anzeigen
+            </>
+          )}
+        </button>
+      )}
     </div>
   );
 };

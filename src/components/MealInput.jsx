@@ -50,14 +50,14 @@ const MealInput = ({ onMealAdded }) => {
   };
 
   return (
-    <div className="glass rounded-3xl p-4 shadow-xl">
+    <div className="glass rounded-3xl p-4 mb-6 shadow-xl">
       <div className="flex gap-3">
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyPress={handleKeyPress}
-          placeholder="z.B. 2 Äpfel, 100g Haferflocken mit Milch, Chicken Burger..."
+          placeholder="z.B. 2 Äpfel, Chicken Burger, 5g Kreatin, Omega-3..."
           disabled={loading}
           className="flex-1 px-6 py-4 rounded-2xl border-2 border-slate-200 focus:border-orange-500 focus:outline-none input-glow disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 placeholder-slate-400"
         />
@@ -80,7 +80,7 @@ const MealInput = ({ onMealAdded }) => {
         </button>
       </div>
       <p className="text-xs text-slate-500 mt-3 text-center">
-        KI-gestützte Analyse mit Google Gemini
+        KI-gestützte Analyse - auch Supplements (Kreatin, Omega-3, etc.) werden erkannt
       </p>
     </div>
   );

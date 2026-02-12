@@ -66,9 +66,16 @@ Skala:
 GESUNDHEITS-ERKLÄRUNG (healthExplanation):
 Erkläre in 2-3 Sätzen WARUM die Mahlzeit so bewertet wurde. Sei spezifisch und erwähne positive/negative Aspekte.
 
+NEM-ERKENNUNG (isSupplement):
+Prüfe ob es sich um ein Nahrungsergänzungsmittel (NEM/Supplement) handelt.
+NEM sind z.B.: Kreatin, Omega-3, Vitamin D, Magnesium, Zink, Eisen, Protein-Pulver/Whey, BCAA, EAA, Kollagen, Ashwagandha, Kurkuma-Kapseln, Elektrolyte, Multivitamin, Fischöl, Probiotika, L-Glutamin, Beta-Alanin, Koffein-Tabletten, etc.
+KEIN NEM: Normale Lebensmittel wie Obst, Gemüse, Fleisch, Milchprodukte, Brot, etc.
+Setze "isSupplement" auf true wenn es ein NEM ist, sonst false.
+
 Antworte NUR mit einem JSON-Objekt in diesem exakten Format, ohne weitere Erklärungen oder Markdown:
 {
   "name": "Beschreibender Name der Mahlzeit",
+  "isSupplement": false,
   "healthScore": 1-6,
   "healthExplanation": "Erklärung warum so bewertet",
   "components": [
@@ -115,7 +122,8 @@ Antworte NUR mit einem JSON-Objekt in diesem exakten Format, ohne weitere Erklä
       ...totals,
       components: parsed.components,
       healthScore: parsed.healthScore || 3,
-      healthExplanation: parsed.healthExplanation || 'Keine Bewertung verfügbar'
+      healthExplanation: parsed.healthExplanation || 'Keine Bewertung verfügbar',
+      isSupplement: parsed.isSupplement || false
     };
 
     return new Response(
