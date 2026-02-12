@@ -43,8 +43,8 @@ export default async (req, context) => {
     // 1. Gültigen Access Token holen (refresht automatisch wenn nötig)
     const { access_token } = await refreshStravaToken(athlete_id);
 
-    // 2. Letzte 30 Aktivitäten von Strava API laden
-    const after = Math.floor(Date.now() / 1000) - (30 * 24 * 60 * 60); // letzte 30 Tage
+    // 2. Letzte Aktivitäten von Strava API laden (5 Tage)
+    const after = Math.floor(Date.now() / 1000) - (5 * 24 * 60 * 60); // letzte 5 Tage
     const stravaResponse = await fetch(
       `https://www.strava.com/api/v3/athlete/activities?per_page=30&after=${after}`,
       {
@@ -62,10 +62,29 @@ export default async (req, context) => {
 
     const activities = await stravaResponse.json();
 
-    // 3. Aktivitäten in Supabase speichern (upsert)
+    // 3. Detail-Daten pro Aktivität laden (für Kalorien etc.)
+    const detailedActivities = await Promise.all(
+      activities.map(async (act) => {
+        try {
+          const detailRes = await fetch(
+            `https://www.strava.com/api/v3/activities/${act.id}`,
+            { headers: { Authorization: `Bearer ${access_token}` } }
+          );
+          if (detailRes.ok) {
+            const detail = await detailRes.json();
+            return { ...act, calories: detail.calories || 0 };
+          }
+        } catch (e) {
+          console.error(`Detail fetch failed for ${act.id}:`, e);
+        }
+        return act;
+      })
+    );
+
+    // 4. Aktivitäten in Supabase speichern (upsert)
     const supabase = getSupabase();
 
-    const rows = activities.map(act => ({
+    const rows = detailedActivities.map(act => ({
       strava_id: String(act.id),
       user_id: String(athlete_id),
       name: act.name,
@@ -99,13 +118,14 @@ export default async (req, context) => {
       }
     }
 
-    // 4. Alle gespeicherten Aktivitäten zurückgeben (aus Supabase, sortiert)
+    // 5. Aktivitäten der letzten 5 Tage aus Supabase zurückgeben
+    const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
     const { data: savedActivities, error: fetchError } = await supabase
       .from('strava_activities')
       .select('*')
       .eq('user_id', String(athlete_id))
-      .order('start_date', { ascending: false })
-      .limit(30);
+      .gte('start_date', fiveDaysAgo)
+      .order('start_date', { ascending: false });
 
     if (fetchError) {
       console.error('Fetch error:', fetchError);

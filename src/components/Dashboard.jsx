@@ -242,6 +242,9 @@ const Dashboard = ({ user, onLogout }) => {
         {/* Mahlzeiten-Liste */}
         <MealList meals={meals} onDeleteMeal={handleDeleteMeal} />
 
+        {/* Mahlzeiten-Eingabe (direkt unter der Liste) */}
+        <MealInput onMealAdded={handleMealAdded} />
+
         {/* Aktivitäten */}
         <ActivityList user={user} />
 
@@ -250,9 +253,6 @@ const Dashboard = ({ user, onLogout }) => {
 
         {/* RED-S Warnung (Platzhalter) */}
         <RedSWarning />
-
-        {/* Mahlzeiten-Eingabe */}
-        <MealInput onMealAdded={handleMealAdded} />
       </div>
 
       {/* Kalorienziel-Rechner Modal */}

@@ -122,15 +122,12 @@ const ActivityList = ({ user }) => {
     );
   }
 
-  // Berechne Wochen-Zusammenfassung
-  const now = new Date();
-  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  const thisWeek = activities.filter(a => new Date(a.start_date) >= weekAgo);
-  const weekStats = {
-    count: thisWeek.length,
-    duration: thisWeek.reduce((sum, a) => sum + (a.moving_time || 0), 0),
-    distance: thisWeek.reduce((sum, a) => sum + (a.distance || 0), 0),
-    calories: thisWeek.reduce((sum, a) => sum + (a.calories || 0), 0),
+  // Zusammenfassung der letzten 5 Tage (alle geladenen Aktivitäten)
+  const stats = {
+    count: activities.length,
+    duration: activities.reduce((sum, a) => sum + (a.moving_time || 0), 0),
+    distance: activities.reduce((sum, a) => sum + (a.distance || 0), 0),
+    calories: activities.reduce((sum, a) => sum + (a.calories || 0), 0),
   };
 
   return (
@@ -183,32 +180,32 @@ const ActivityList = ({ user }) => {
               <Zap className="w-3.5 h-3.5 text-orange-500" />
               <p className="text-orange-600 text-xs font-semibold uppercase tracking-wide">Trainings</p>
             </div>
-            <p className="text-xl font-bold text-orange-900 mono">{weekStats.count}</p>
-            <p className="text-xs text-orange-500">diese Woche</p>
+            <p className="text-xl font-bold text-orange-900 mono">{stats.count}</p>
+            <p className="text-xs text-orange-500">letzte 5 Tage</p>
           </div>
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-3 border border-blue-100">
             <div className="flex items-center gap-1.5 mb-1">
               <Clock className="w-3.5 h-3.5 text-blue-500" />
               <p className="text-blue-600 text-xs font-semibold uppercase tracking-wide">Zeit</p>
             </div>
-            <p className="text-xl font-bold text-blue-900 mono">{formatDuration(weekStats.duration)}</p>
-            <p className="text-xs text-blue-500">diese Woche</p>
+            <p className="text-xl font-bold text-blue-900 mono">{formatDuration(stats.duration)}</p>
+            <p className="text-xs text-blue-500">letzte 5 Tage</p>
           </div>
           <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-3 border border-green-100">
             <div className="flex items-center gap-1.5 mb-1">
               <TrendingUp className="w-3.5 h-3.5 text-green-500" />
               <p className="text-green-600 text-xs font-semibold uppercase tracking-wide">Distanz</p>
             </div>
-            <p className="text-xl font-bold text-green-900 mono">{formatDistance(weekStats.distance)}</p>
-            <p className="text-xs text-green-500">diese Woche</p>
+            <p className="text-xl font-bold text-green-900 mono">{formatDistance(stats.distance)}</p>
+            <p className="text-xs text-green-500">letzte 5 Tage</p>
           </div>
           <div className="bg-gradient-to-br from-red-50 to-rose-50 rounded-xl p-3 border border-red-100">
             <div className="flex items-center gap-1.5 mb-1">
               <Flame className="w-3.5 h-3.5 text-red-500" />
               <p className="text-red-600 text-xs font-semibold uppercase tracking-wide">Kalorien</p>
             </div>
-            <p className="text-xl font-bold text-red-900 mono">{Math.round(weekStats.calories)}</p>
-            <p className="text-xs text-red-500">diese Woche</p>
+            <p className="text-xl font-bold text-red-900 mono">{Math.round(stats.calories)}</p>
+            <p className="text-xs text-red-500">letzte 5 Tage</p>
           </div>
         </div>
       )}
@@ -216,7 +213,7 @@ const ActivityList = ({ user }) => {
       {/* Keine Aktivitäten */}
       {activities.length === 0 && !loading && !syncing && (
         <div className="text-center py-8">
-          <p className="text-slate-400">Keine Aktivitäten in den letzten 30 Tagen</p>
+          <p className="text-slate-400">Keine Aktivitäten in den letzten 5 Tagen</p>
           <p className="text-slate-400 text-sm mt-1">Zeichne ein Training in Strava auf!</p>
         </div>
       )}
