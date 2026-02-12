@@ -1,18 +1,19 @@
 import { createClient } from '@supabase/supabase-js';
 
-async function getWhoopToken(athleteId) {
-  // Gleiche Env-Var-Namen wie strava-callback.mjs verwenden
-  const supabaseUrl = typeof Netlify !== 'undefined'
-    ? (Netlify.env.get('VITE_SUPABASE_URL') || Netlify.env.get('SUPABASE_URL'))
-    : (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL);
-  const supabaseKey = typeof Netlify !== 'undefined'
-    ? (Netlify.env.get('SUPABASE_SERVICE_KEY') || Netlify.env.get('SUPABASE_SERVICE_ROLE_KEY'))
-    : (process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY);
+function getEnv(name) {
+  return typeof Netlify !== 'undefined' ? Netlify.env.get(name) : process.env[name];
+}
 
+function getSupabase() {
+  const supabaseUrl = getEnv('VITE_SUPABASE_URL') || getEnv('SUPABASE_URL');
+  const supabaseKey = getEnv('SUPABASE_SERVICE_KEY') || getEnv('SUPABASE_SERVICE_ROLE_KEY');
   if (!supabaseUrl || !supabaseKey) return null;
+  return createClient(supabaseUrl, supabaseKey);
+}
 
-  const supabase = createClient(supabaseUrl, supabaseKey);
-  console.log('Looking up Whoop token for athlete:', athleteId);
+async function getWhoopToken(athleteId) {
+  const supabase = getSupabase();
+  if (!supabase) return null;
 
   const { data, error: lookupError } = await supabase
     .from('user_profiles')
@@ -32,12 +33,9 @@ async function getWhoopToken(athleteId) {
 
   // Token abgelaufen? Refresh
   if (data.whoop_token_expires && new Date(data.whoop_token_expires) < new Date()) {
-    const clientId = typeof Netlify !== 'undefined'
-      ? Netlify.env.get('WHOOP_CLIENT_ID')
-      : process.env.WHOOP_CLIENT_ID;
-    const clientSecret = typeof Netlify !== 'undefined'
-      ? Netlify.env.get('WHOOP_CLIENT_SECRET')
-      : process.env.WHOOP_CLIENT_SECRET;
+    console.log('Token expired, refreshing...');
+    const clientId = getEnv('WHOOP_CLIENT_ID');
+    const clientSecret = getEnv('WHOOP_CLIENT_SECRET');
 
     const refreshResponse = await fetch('https://api.prod.whoop.com/oauth/oauth2/token', {
       method: 'POST',
@@ -61,22 +59,28 @@ async function getWhoopToken(athleteId) {
           whoop_refresh_token: newTokens.refresh_token || data.whoop_refresh_token,
           whoop_token_expires: expiresAt,
         })
-        .eq('id', athleteId);
+        .eq('id', String(athleteId));
 
+      console.log('Token refreshed successfully');
       return newTokens.access_token;
     }
 
+    console.error('Token refresh failed:', refreshResponse.status);
     return null;
   }
 
   return data.whoop_access_token;
 }
 
+// Whoop API v2 - die funktionierende Version
 async function whoopGet(token, path) {
-  const res = await fetch(`https://api.prod.whoop.com/developer/v1/${path}`, {
+  const res = await fetch(`https://api.prod.whoop.com/developer/v2/${path}`, {
     headers: { Authorization: `Bearer ${token}` },
   });
-  if (!res.ok) throw new Error(`Whoop API error: ${res.status}`);
+  if (!res.ok) {
+    const errText = await res.text().catch(() => '');
+    throw new Error(`Whoop API v2 error ${res.status}: ${errText.substring(0, 200)}`);
+  }
   return res.json();
 }
 
@@ -102,35 +106,39 @@ export default async (req, context) => {
       );
     }
 
-    // Zeitraum: letzte 7 Tage
-    const endDate = new Date().toISOString();
-    const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    // Zeitraum: letzte 7 Tage - korrektes Format wie in trainer-analytics
+    const today = new Date();
+    const sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    // Daten parallel laden mit detailliertem Logging
+    const endStr = today.toISOString().split('T')[0];
+    const startStr = sevenDaysAgo.toISOString().split('T')[0];
+    const startDate = `${startStr}T00:00:00.000Z`;
+    const endDate = `${endStr}T23:59:59.999Z`;
+
+    console.log('Fetching Whoop data from', startDate, 'to', endDate);
+
+    // Daten parallel laden über v2 API mit limit=20
     const [recoveryData, sleepData, cycleData] = await Promise.all([
-      whoopGet(token, `recovery?start=${startDate}&end=${endDate}`).catch(e => {
+      whoopGet(token, `recovery?start=${startDate}&end=${endDate}&limit=20`).catch(e => {
         console.error('Recovery fetch error:', e.message);
         return { records: [] };
       }),
-      whoopGet(token, `activity/sleep?start=${startDate}&end=${endDate}`).catch(e => {
+      whoopGet(token, `activity/sleep?start=${startDate}&end=${endDate}&limit=20`).catch(e => {
         console.error('Sleep fetch error:', e.message);
         return { records: [] };
       }),
-      whoopGet(token, `cycle?start=${startDate}&end=${endDate}`).catch(e => {
+      whoopGet(token, `cycle?start=${startDate}&end=${endDate}&limit=20`).catch(e => {
         console.error('Cycle fetch error:', e.message);
         return { records: [] };
       }),
     ]);
 
-    // Debug: Raw-Daten loggen
-    console.log('Recovery records:', recoveryData.records?.length || 0,
-      recoveryData.records?.[0] ? JSON.stringify(recoveryData.records[0]).substring(0, 500) : 'empty');
-    console.log('Sleep records:', sleepData.records?.length || 0,
-      sleepData.records?.[0] ? JSON.stringify(sleepData.records[0]).substring(0, 500) : 'empty');
-    console.log('Cycle records:', cycleData.records?.length || 0,
-      cycleData.records?.[0] ? JSON.stringify(cycleData.records[0]).substring(0, 500) : 'empty');
+    console.log('Recovery records:', recoveryData.records?.length || 0);
+    console.log('Sleep records:', sleepData.records?.length || 0);
+    console.log('Cycle records:', cycleData.records?.length || 0);
 
-    // Daten aufbereiten
+    // Recovery aufbereiten - gleiche Felder wie trainer-analytics
     const recoveries = (recoveryData.records || []).map(r => ({
       date: r.created_at,
       recoveryScore: r.score?.recovery_score,
@@ -138,9 +146,9 @@ export default async (req, context) => {
       restingHr: r.score?.resting_heart_rate,
       spo2: r.score?.spo2_percentage,
       skinTemp: r.score?.skin_temp_celsius,
-      respiratoryRate: r.score?.respiratory_rate,
     })).sort((a, b) => new Date(b.date) - new Date(a.date));
 
+    // Sleep aufbereiten - respiratory_rate kommt aus Sleep-Score
     const sleeps = (sleepData.records || []).map(s => ({
       date: s.created_at,
       totalSleepMs: s.score?.stage_summary?.total_in_bed_time_milli,
@@ -151,6 +159,7 @@ export default async (req, context) => {
       respiratoryRate: s.score?.respiratory_rate,
     })).sort((a, b) => new Date(b.date) - new Date(a.date));
 
+    // Cycles/Strain aufbereiten
     const cycles = (cycleData.records || []).map(c => ({
       date: c.created_at,
       strain: c.score?.strain,
@@ -159,9 +168,10 @@ export default async (req, context) => {
       maxHr: c.score?.max_heart_rate,
     })).sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    console.log('Mapped recoveries[0]:', recoveries[0] ? JSON.stringify(recoveries[0]) : 'empty');
-    console.log('Mapped sleeps[0]:', sleeps[0] ? JSON.stringify(sleeps[0]) : 'empty');
-    console.log('Mapped cycles[0]:', cycles[0] ? JSON.stringify(cycles[0]) : 'empty');
+    // Debug: erste gemappte Records loggen
+    if (recoveries[0]) console.log('Recovery[0]:', JSON.stringify(recoveries[0]));
+    if (sleeps[0]) console.log('Sleep[0]:', JSON.stringify(sleeps[0]));
+    if (cycles[0]) console.log('Cycle[0]:', JSON.stringify(cycles[0]));
 
     return new Response(
       JSON.stringify({
@@ -174,6 +184,7 @@ export default async (req, context) => {
     );
 
   } catch (error) {
+    console.error('Whoop sync error:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }

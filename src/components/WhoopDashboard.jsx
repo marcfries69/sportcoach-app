@@ -337,18 +337,18 @@ const WhoopDashboard = ({ user }) => {
             )}
           </div>
 
-          {/* Atemfrequenz */}
+          {/* Atemfrequenz - kommt aus Sleep-Daten */}
           <div className="bg-teal-50 rounded-xl p-4 border border-teal-100">
             <div className="flex items-center gap-1.5 mb-1">
               <Wind className="w-3.5 h-3.5 text-teal-500" />
               <p className="text-teal-600 text-xs font-semibold uppercase">Atemfrequenz</p>
             </div>
             <p className="text-2xl font-bold text-teal-900 mono">
-              {today?.respiratoryRate ? today.respiratoryRate.toFixed(1) : '--'}
+              {todaySleep?.respiratoryRate ? todaySleep.respiratoryRate.toFixed(1) : '--'}
               <span className="text-sm font-normal text-teal-500 ml-1">rpm</span>
             </p>
-            {yesterday?.respiratoryRate != null && (
-              <p className="text-xs text-teal-400 mt-0.5">Gestern: {yesterday.respiratoryRate.toFixed(1)} rpm</p>
+            {yesterdaySleep?.respiratoryRate != null && (
+              <p className="text-xs text-teal-400 mt-0.5">Gestern: {yesterdaySleep.respiratoryRate.toFixed(1)} rpm</p>
             )}
           </div>
 
