@@ -106,12 +106,29 @@ export default async (req, context) => {
     const endDate = new Date().toISOString();
     const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    // Daten parallel laden
+    // Daten parallel laden mit detailliertem Logging
     const [recoveryData, sleepData, cycleData] = await Promise.all([
-      whoopGet(token, `recovery?start=${startDate}&end=${endDate}`).catch(() => ({ records: [] })),
-      whoopGet(token, `activity/sleep?start=${startDate}&end=${endDate}`).catch(() => ({ records: [] })),
-      whoopGet(token, `cycle?start=${startDate}&end=${endDate}`).catch(() => ({ records: [] })),
+      whoopGet(token, `recovery?start=${startDate}&end=${endDate}`).catch(e => {
+        console.error('Recovery fetch error:', e.message);
+        return { records: [] };
+      }),
+      whoopGet(token, `activity/sleep?start=${startDate}&end=${endDate}`).catch(e => {
+        console.error('Sleep fetch error:', e.message);
+        return { records: [] };
+      }),
+      whoopGet(token, `cycle?start=${startDate}&end=${endDate}`).catch(e => {
+        console.error('Cycle fetch error:', e.message);
+        return { records: [] };
+      }),
     ]);
+
+    // Debug: Raw-Daten loggen
+    console.log('Recovery records:', recoveryData.records?.length || 0,
+      recoveryData.records?.[0] ? JSON.stringify(recoveryData.records[0]).substring(0, 500) : 'empty');
+    console.log('Sleep records:', sleepData.records?.length || 0,
+      sleepData.records?.[0] ? JSON.stringify(sleepData.records[0]).substring(0, 500) : 'empty');
+    console.log('Cycle records:', cycleData.records?.length || 0,
+      cycleData.records?.[0] ? JSON.stringify(cycleData.records[0]).substring(0, 500) : 'empty');
 
     // Daten aufbereiten
     const recoveries = (recoveryData.records || []).map(r => ({
@@ -141,6 +158,10 @@ export default async (req, context) => {
       avgHr: c.score?.average_heart_rate,
       maxHr: c.score?.max_heart_rate,
     })).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    console.log('Mapped recoveries[0]:', recoveries[0] ? JSON.stringify(recoveries[0]) : 'empty');
+    console.log('Mapped sleeps[0]:', sleeps[0] ? JSON.stringify(sleeps[0]) : 'empty');
+    console.log('Mapped cycles[0]:', cycles[0] ? JSON.stringify(cycles[0]) : 'empty');
 
     return new Response(
       JSON.stringify({
