@@ -26,14 +26,15 @@ export default async (req, context) => {
       ? Netlify.env.get('WHOOP_CLIENT_SECRET')
       : process.env.WHOOP_CLIENT_SECRET;
     const siteUrl = typeof Netlify !== 'undefined'
-      ? Netlify.env.get('URL') || Netlify.env.get('DEPLOY_URL')
-      : process.env.URL || process.env.DEPLOY_URL || 'http://localhost:8888';
+      ? (Netlify.env.get('APP_URL') || Netlify.env.get('URL') || Netlify.env.get('DEPLOY_URL'))
+      : (process.env.APP_URL || process.env.URL || process.env.DEPLOY_URL || 'http://localhost:8888');
+    // Gleiche Env-Var-Namen wie strava-callback.mjs verwenden
     const supabaseUrl = typeof Netlify !== 'undefined'
-      ? Netlify.env.get('SUPABASE_URL')
-      : process.env.SUPABASE_URL;
+      ? (Netlify.env.get('VITE_SUPABASE_URL') || Netlify.env.get('SUPABASE_URL'))
+      : (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL);
     const supabaseKey = typeof Netlify !== 'undefined'
-      ? Netlify.env.get('SUPABASE_SERVICE_ROLE_KEY')
-      : process.env.SUPABASE_SERVICE_ROLE_KEY;
+      ? (Netlify.env.get('SUPABASE_SERVICE_KEY') || Netlify.env.get('SUPABASE_SERVICE_ROLE_KEY'))
+      : (process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY);
 
     const redirectUri = `${siteUrl}/.netlify/functions/whoop-callback`;
 
@@ -60,35 +61,39 @@ export default async (req, context) => {
     console.log('Whoop token received, saving for athlete:', state);
 
     // Token in Supabase speichern
-    if (supabaseUrl && supabaseKey) {
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
-
-      // user_profiles.id kann text oder bigint sein - versuche beide Wege
-      const { error: updateError, count } = await supabase
-        .from('user_profiles')
-        .update({
-          whoop_access_token: tokenData.access_token,
-          whoop_refresh_token: tokenData.refresh_token,
-          whoop_token_expires: expiresAt,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', state);
-
-      if (updateError) {
-        console.error('Whoop token save error:', updateError);
-        return Response.redirect(`${siteUrl}?whoop_error=token_save_failed`, 302);
-      }
-      console.log('Whoop token saved successfully for athlete:', state);
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('Supabase config missing! supabaseUrl:', !!supabaseUrl, 'supabaseKey:', !!supabaseKey);
+      return Response.redirect(`${siteUrl}?whoop_error=db_config_missing`, 302);
     }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
+    const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
+
+    console.log('Saving Whoop token for athlete:', state, 'supabaseUrl:', supabaseUrl);
+
+    const { error: updateError } = await supabase
+      .from('user_profiles')
+      .update({
+        whoop_access_token: tokenData.access_token,
+        whoop_refresh_token: tokenData.refresh_token,
+        whoop_token_expires: expiresAt,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', state);
+
+    if (updateError) {
+      console.error('Whoop token save error:', updateError);
+      return Response.redirect(`${siteUrl}?whoop_error=token_save_failed`, 302);
+    }
+    console.log('Whoop token saved successfully for athlete:', state);
 
     return Response.redirect(`${siteUrl}?whoop_connected=true`, 302);
 
   } catch (error) {
     console.error('Whoop callback error:', error);
     const siteUrl = typeof Netlify !== 'undefined'
-      ? Netlify.env.get('URL') || Netlify.env.get('DEPLOY_URL')
-      : process.env.URL || process.env.DEPLOY_URL || 'http://localhost:8888';
+      ? (Netlify.env.get('APP_URL') || Netlify.env.get('URL') || Netlify.env.get('DEPLOY_URL'))
+      : (process.env.APP_URL || process.env.URL || process.env.DEPLOY_URL || 'http://localhost:8888');
     return Response.redirect(`${siteUrl}?whoop_error=callback_failed`, 302);
   }
 };

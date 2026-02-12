@@ -47,12 +47,17 @@ const WhoopDashboard = ({ user }) => {
   useEffect(() => {
     // Whoop-Callback-Params prüfen
     const params = new URLSearchParams(window.location.search);
-    if (params.get('whoop_connected') === 'true') {
+    const whoopError = params.get('whoop_error');
+    const whoopConnected = params.get('whoop_connected') === 'true';
+
+    if (whoopConnected || whoopError) {
       window.history.replaceState({}, '', window.location.pathname);
     }
-    if (params.get('whoop_error')) {
-      setError('Whoop-Verbindung fehlgeschlagen: ' + params.get('whoop_error'));
-      window.history.replaceState({}, '', window.location.pathname);
+
+    if (whoopError) {
+      setError('Whoop-Verbindung fehlgeschlagen: ' + whoopError);
+      setLoading(false);
+      return; // Nicht syncen wenn Error-Redirect
     }
 
     syncWhoopData();

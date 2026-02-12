@@ -1,12 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
 
 async function getWhoopToken(athleteId) {
+  // Gleiche Env-Var-Namen wie strava-callback.mjs verwenden
   const supabaseUrl = typeof Netlify !== 'undefined'
-    ? Netlify.env.get('SUPABASE_URL')
-    : process.env.SUPABASE_URL;
+    ? (Netlify.env.get('VITE_SUPABASE_URL') || Netlify.env.get('SUPABASE_URL'))
+    : (process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL);
   const supabaseKey = typeof Netlify !== 'undefined'
-    ? Netlify.env.get('SUPABASE_SERVICE_ROLE_KEY')
-    : process.env.SUPABASE_SERVICE_ROLE_KEY;
+    ? (Netlify.env.get('SUPABASE_SERVICE_KEY') || Netlify.env.get('SUPABASE_SERVICE_ROLE_KEY'))
+    : (process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY);
 
   if (!supabaseUrl || !supabaseKey) return null;
 

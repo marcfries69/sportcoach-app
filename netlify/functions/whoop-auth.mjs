@@ -9,8 +9,8 @@ export default async (req, context) => {
       : process.env.WHOOP_CLIENT_ID;
 
     const siteUrl = typeof Netlify !== 'undefined'
-      ? Netlify.env.get('URL') || Netlify.env.get('DEPLOY_URL')
-      : process.env.URL || process.env.DEPLOY_URL || 'http://localhost:8888';
+      ? (Netlify.env.get('APP_URL') || Netlify.env.get('URL') || Netlify.env.get('DEPLOY_URL'))
+      : (process.env.APP_URL || process.env.URL || process.env.DEPLOY_URL || 'http://localhost:8888');
 
     if (!clientId) {
       return new Response(
