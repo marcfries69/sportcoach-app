@@ -242,8 +242,8 @@ const Dashboard = ({ user, onLogout }) => {
         {/* Mahlzeiten-Liste */}
         <MealList meals={meals} onDeleteMeal={handleDeleteMeal} />
 
-        {/* Aktivitäten (Platzhalter) */}
-        <ActivityList />
+        {/* Aktivitäten */}
+        <ActivityList user={user} />
 
         {/* KI-Coach (Platzhalter) */}
         <NutritionCoach />
