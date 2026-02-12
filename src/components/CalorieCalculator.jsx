@@ -2,9 +2,9 @@ import React, { useState } from 'react';
 import { Calculator, X, Check } from 'lucide-react';
 
 const ACTIVITY_LEVELS = {
-  low: { label: 'Wenig', description: 'Überwiegend sitzend, Bürojob', factor: 1.2, emoji: '🪑' },
-  moderate: { label: 'Mäßig', description: 'Normaler Alltag, etwas Gehen', factor: 1.4, emoji: '🚶' },
-  high: { label: 'Viel', description: 'Aktiver Alltag, viel auf den Beinen', factor: 1.6, emoji: '🏃' },
+  low: { label: 'Wenig', description: 'Überwiegend sitzend, Bürojob, <5.000 Schritte', factor: 1.2, emoji: '🪑' },
+  moderate: { label: 'Mäßig', description: 'Teils sitzend, teils stehend/gehend, 5-8.000 Schritte', factor: 1.3, emoji: '🚶' },
+  high: { label: 'Viel', description: 'Aktiver Alltag, viel auf den Beinen, >10.000 Schritte', factor: 1.5, emoji: '🏃' },
 };
 
 const CalorieCalculator = ({ onClose, onAccept }) => {

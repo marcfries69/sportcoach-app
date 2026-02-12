@@ -9,7 +9,7 @@ import ActivityList from './ActivityList';
 import NutritionCoach from './NutritionCoach';
 import RedSWarning from './RedSWarning';
 import WhoopDashboard from './WhoopDashboard';
-import { loadMeals, saveMeal, deleteMeal } from '../lib/meals';
+import { loadMeals, saveMeal, deleteMeal, loadMealsForRange } from '../lib/meals';
 import { loadCalorieGoal, saveCalorieGoal, loadBodyData, saveBodyData } from '../lib/userSettings';
 
 const Dashboard = ({ user, onLogout }) => {
@@ -18,11 +18,20 @@ const Dashboard = ({ user, onLogout }) => {
   const [bodyData, setBodyData] = useState(null);
   const [showCalculator, setShowCalculator] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('dashboard');
+  // Whoop-Callback erkennen: Wenn ?whoop_connected=true, direkt Whoop-Tab öffnen
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('whoop_connected') === 'true' || params.get('whoop_error')) {
+      return 'whoop';
+    }
+    return 'dashboard';
+  });
 
   // Aktivitäten-Kalorien (von ActivityList gemeldet)
   const [todayActivityKcal, setTodayActivityKcal] = useState(0);
   const [fiveDayActivityKcal, setFiveDayActivityKcal] = useState(0);
+  // 5-Tage Meal-Kalorien für RED-S und Energiebilanz
+  const [fiveDayMealKcal, setFiveDayMealKcal] = useState(0);
   // Aktivitäten-Daten für Coach
   const [activities, setActivities] = useState([]);
 
@@ -35,10 +44,11 @@ const Dashboard = ({ user, onLogout }) => {
     const loadData = async () => {
       setLoading(true);
       try {
-        const [mealsResult, goalResult, bodyResult] = await Promise.all([
+        const [mealsResult, goalResult, bodyResult, fiveDayMealsResult] = await Promise.all([
           loadMeals(user.id),
           loadCalorieGoal(user.id),
           loadBodyData(user.id),
+          loadMealsForRange(user.id, 5),
         ]);
 
         if (mealsResult.data) {
@@ -47,6 +57,13 @@ const Dashboard = ({ user, onLogout }) => {
         setCalorieGoal(goalResult.calorieGoal);
         if (bodyResult.data) {
           setBodyData(bodyResult.data);
+        }
+        // 5-Tage Meal-Kalorien berechnen (nur echte Mahlzeiten, keine Supplements)
+        if (fiveDayMealsResult.data) {
+          const fiveDayKcal = fiveDayMealsResult.data
+            .filter(m => !m.isSupplement)
+            .reduce((sum, m) => sum + (m.kcal || 0), 0);
+          setFiveDayMealKcal(fiveDayKcal);
         }
       } catch (err) {
         console.error('Daten laden fehlgeschlagen:', err);
@@ -346,7 +363,7 @@ const Dashboard = ({ user, onLogout }) => {
               bodyData={bodyData}
               todayMealKcal={totals.kcal}
               todayActivityKcal={todayActivityKcal}
-              fiveDayMealKcal={totals.kcal}
+              fiveDayMealKcal={fiveDayMealKcal}
               fiveDayActivityKcal={fiveDayActivityKcal}
               onOpenCalculator={() => setShowCalculator(true)}
             />
@@ -354,11 +371,13 @@ const Dashboard = ({ user, onLogout }) => {
             {/* Aktivitäten */}
             <ActivityList user={user} onActivityCalories={handleActivityCalories} />
 
-            {/* RED-S Warnung - nur bei Indikation */}
+            {/* RED-S Warnung - nur ab 17 Uhr bei >10% Defizit */}
             <RedSWarning
               totals={totals}
               bodyData={bodyData}
               todayActivityKcal={todayActivityKcal}
+              fiveDayMealKcal={fiveDayMealKcal}
+              fiveDayBurn={bodyData ? (bodyData.dailyBase * 5) + fiveDayActivityKcal : null}
             />
           </>
         )}

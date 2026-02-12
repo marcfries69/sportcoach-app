@@ -57,13 +57,15 @@ export default async (req, context) => {
     }
 
     const tokenData = await tokenResponse.json();
+    console.log('Whoop token received, saving for athlete:', state);
 
     // Token in Supabase speichern
     if (supabaseUrl && supabaseKey) {
       const supabase = createClient(supabaseUrl, supabaseKey);
       const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString();
 
-      await supabase
+      // user_profiles.id kann text oder bigint sein - versuche beide Wege
+      const { error: updateError, count } = await supabase
         .from('user_profiles')
         .update({
           whoop_access_token: tokenData.access_token,
@@ -72,6 +74,12 @@ export default async (req, context) => {
           updated_at: new Date().toISOString(),
         })
         .eq('id', state);
+
+      if (updateError) {
+        console.error('Whoop token save error:', updateError);
+        return Response.redirect(`${siteUrl}?whoop_error=token_save_failed`, 302);
+      }
+      console.log('Whoop token saved successfully for athlete:', state);
     }
 
     return Response.redirect(`${siteUrl}?whoop_connected=true`, 302);

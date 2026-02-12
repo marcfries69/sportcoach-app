@@ -11,13 +11,23 @@ async function getWhoopToken(athleteId) {
   if (!supabaseUrl || !supabaseKey) return null;
 
   const supabase = createClient(supabaseUrl, supabaseKey);
-  const { data } = await supabase
+  console.log('Looking up Whoop token for athlete:', athleteId);
+
+  const { data, error: lookupError } = await supabase
     .from('user_profiles')
     .select('whoop_access_token, whoop_refresh_token, whoop_token_expires')
-    .eq('id', athleteId)
+    .eq('id', String(athleteId))
     .single();
 
-  if (!data || !data.whoop_access_token) return null;
+  if (lookupError) {
+    console.error('Whoop token lookup error:', lookupError);
+    return null;
+  }
+
+  if (!data || !data.whoop_access_token) {
+    console.log('No Whoop token found for athlete:', athleteId);
+    return null;
+  }
 
   // Token abgelaufen? Refresh
   if (data.whoop_token_expires && new Date(data.whoop_token_expires) < new Date()) {

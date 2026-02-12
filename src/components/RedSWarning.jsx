@@ -1,39 +1,42 @@
 import React from 'react';
 import { AlertTriangle, ShieldAlert } from 'lucide-react';
 
-const RedSWarning = ({ totals, bodyData, todayActivityKcal }) => {
+const RedSWarning = ({ totals, bodyData, todayActivityKcal, fiveDayMealKcal, fiveDayBurn }) => {
   // Keine Daten vorhanden - nichts anzeigen
   if (!bodyData || !bodyData.dailyBase || !totals) return null;
 
+  // Nur ab 17:00 Uhr anzeigen - vorher ist der Tag noch nicht weit genug
+  const currentHour = new Date().getHours();
+  if (currentHour < 17) return null;
+
   const dailyBase = bodyData.dailyBase;
   const totalBurn = dailyBase + (todayActivityKcal || 0);
-  const balance = (totals.kcal || 0) - totalBurn;
+  const todayIntake = totals.kcal || 0;
+
+  // Mindestens etwas gegessen haben (sonst hat User einfach noch nichts eingetragen)
+  if (todayIntake === 0) return null;
 
   // RED-S Indikationen prüfen
   const warnings = [];
 
-  // 1. Starkes Kaloriendefizit (> 500 kcal unter Gesamtverbrauch)
-  if (balance < -500 && totals.kcal > 0) {
+  // 1. Einzeltag: Kalorienintake >10% zu gering gegenüber Gesamtverbrauch
+  const todayDeficitPercent = totalBurn > 0 ? ((totalBurn - todayIntake) / totalBurn) * 100 : 0;
+  if (todayDeficitPercent > 10) {
     warnings.push({
-      title: 'Hohes Energiedefizit',
-      text: `Deine Kalorienzufuhr liegt ${Math.abs(Math.round(balance))} kcal unter deinem Gesamtverbrauch. Ein Defizit über 500 kcal kann langfristig zu Leistungseinbußen und gesundheitlichen Problemen führen.`,
+      title: 'Energiedefizit heute',
+      text: `Deine Kalorienzufuhr (${Math.round(todayIntake)} kcal) liegt ${Math.round(todayDeficitPercent)}% unter deinem Gesamtverbrauch (${Math.round(totalBurn)} kcal). Ein Defizit über 10% kann langfristig zu Leistungseinbußen führen.`,
     });
   }
 
-  // 2. Kalorienzufuhr deutlich unter Grundumsatz
-  if (totals.kcal > 0 && totals.kcal < bodyData.bmr * 0.75) {
-    warnings.push({
-      title: 'Zufuhr unter Grundumsatz',
-      text: `Deine Kalorienzufuhr (${Math.round(totals.kcal)} kcal) liegt deutlich unter deinem Grundumsatz (${bodyData.bmr} kcal). Dein Körper braucht mindestens den Grundumsatz, um lebenswichtige Funktionen aufrechtzuerhalten.`,
-    });
-  }
-
-  // 3. Hohes Training bei sehr niedriger Zufuhr
-  if (todayActivityKcal > 300 && totals.kcal > 0 && totals.kcal < dailyBase * 0.6) {
-    warnings.push({
-      title: 'Hohe Belastung bei niedriger Zufuhr',
-      text: `Du hast heute ${Math.round(todayActivityKcal)} kcal durch Training verbraucht, aber nur ${Math.round(totals.kcal)} kcal zugeführt. Diese Kombination kann zu Übertraining und Verletzungen führen.`,
-    });
+  // 2. 5-Tage-Durchschnitt: Kalorienintake >10% zu gering
+  if (fiveDayMealKcal != null && fiveDayBurn != null && fiveDayBurn > 0 && fiveDayMealKcal > 0) {
+    const fiveDayDeficitPercent = ((fiveDayBurn - fiveDayMealKcal) / fiveDayBurn) * 100;
+    if (fiveDayDeficitPercent > 10) {
+      warnings.push({
+        title: 'Anhaltendes Energiedefizit (5 Tage)',
+        text: `Dein durchschnittlicher Kalorienintake der letzten 5 Tage liegt ${Math.round(fiveDayDeficitPercent)}% unter deinem Verbrauch. Anhaltendes Defizit erhöht das Risiko für Übertraining, Verletzungen und hormonelle Störungen.`,
+      });
+    }
   }
 
   // Keine Warnungen - nicht anzeigen
@@ -66,7 +69,7 @@ const RedSWarning = ({ totals, bodyData, todayActivityKcal }) => {
       </div>
 
       <p className="text-xs text-red-400 mt-4 text-center">
-        Diese Warnung basiert auf den heutigen Daten. Konsultiere einen Arzt bei anhaltenden Symptomen.
+        Diese Warnung erscheint ab 17 Uhr bei einem Energiedefizit über 10%. Konsultiere einen Arzt bei anhaltenden Symptomen.
       </p>
     </div>
   );
