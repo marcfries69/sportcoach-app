@@ -8,28 +8,37 @@ import ActivityList from './ActivityList';
 import NutritionCoach from './NutritionCoach';
 import RedSWarning from './RedSWarning';
 import { loadMeals, saveMeal, deleteMeal, deleteAllMealsForDate } from '../lib/meals';
-import { loadCalorieGoal, saveCalorieGoal } from '../lib/userSettings';
+import { loadCalorieGoal, saveCalorieGoal, loadBodyData, saveBodyData } from '../lib/userSettings';
 
 const Dashboard = ({ user, onLogout }) => {
   const [meals, setMeals] = useState([]);
   const [calorieGoal, setCalorieGoal] = useState(2000);
+  const [bodyData, setBodyData] = useState(null);
   const [showCalculator, setShowCalculator] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Aktivitäten-Kalorien (von ActivityList gemeldet)
+  const [todayActivityKcal, setTodayActivityKcal] = useState(0);
+  const [fiveDayActivityKcal, setFiveDayActivityKcal] = useState(0);
 
   // Daten aus Supabase laden beim Start
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
       try {
-        const [mealsResult, goalResult] = await Promise.all([
+        const [mealsResult, goalResult, bodyResult] = await Promise.all([
           loadMeals(user.id),
           loadCalorieGoal(user.id),
+          loadBodyData(user.id),
         ]);
 
         if (mealsResult.data) {
           setMeals(mealsResult.data);
         }
         setCalorieGoal(goalResult.calorieGoal);
+        if (bodyResult.data) {
+          setBodyData(bodyResult.data);
+        }
       } catch (err) {
         console.error('Daten laden fehlgeschlagen:', err);
       } finally {
@@ -41,10 +50,8 @@ const Dashboard = ({ user, onLogout }) => {
   }, [user.id]);
 
   const handleMealAdded = async (newMeal) => {
-    // Optimistic Update: UI sofort aktualisieren
     setMeals(prev => [...prev, newMeal]);
 
-    // Im Hintergrund in Supabase speichern
     const { error } = await saveMeal(user.id, newMeal);
     if (error) {
       console.error('Mahlzeit speichern fehlgeschlagen:', error);
@@ -72,14 +79,30 @@ const Dashboard = ({ user, onLogout }) => {
     }
   };
 
-  const handleAcceptGoal = async (goal) => {
+  const handleAcceptGoal = async (goal, newBodyData) => {
     setCalorieGoal(goal);
     setShowCalculator(false);
 
+    // Kalorienziel speichern
     const { error } = await saveCalorieGoal(user.id, goal);
     if (error) {
       console.error('Kalorienziel speichern fehlgeschlagen:', error);
     }
+
+    // BMR/Body-Daten speichern (wenn vorhanden)
+    if (newBodyData) {
+      setBodyData(newBodyData);
+      const { error: bodyError } = await saveBodyData(user.id, newBodyData);
+      if (bodyError) {
+        console.error('Body-Daten speichern fehlgeschlagen:', bodyError);
+      }
+    }
+  };
+
+  // Callback von ActivityList: Aktivitäten-Kalorien melden
+  const handleActivityCalories = (todayKcal, totalKcal) => {
+    setTodayActivityKcal(todayKcal);
+    setFiveDayActivityKcal(totalKcal);
   };
 
   const totals = meals.reduce((acc, meal) => ({
@@ -236,8 +259,15 @@ const Dashboard = ({ user, onLogout }) => {
           </div>
         </div>
 
-        {/* Energiebilanz (Platzhalter) */}
-        <EnergyBalance />
+        {/* Energiebilanz */}
+        <EnergyBalance
+          bodyData={bodyData}
+          todayMealKcal={totals.kcal}
+          todayActivityKcal={todayActivityKcal}
+          fiveDayMealKcal={totals.kcal}
+          fiveDayActivityKcal={fiveDayActivityKcal}
+          onOpenCalculator={() => setShowCalculator(true)}
+        />
 
         {/* Mahlzeiten-Liste */}
         <MealList meals={meals} onDeleteMeal={handleDeleteMeal} />
@@ -246,7 +276,7 @@ const Dashboard = ({ user, onLogout }) => {
         <MealInput onMealAdded={handleMealAdded} />
 
         {/* Aktivitäten */}
-        <ActivityList user={user} />
+        <ActivityList user={user} onActivityCalories={handleActivityCalories} />
 
         {/* KI-Coach (Platzhalter) */}
         <NutritionCoach />

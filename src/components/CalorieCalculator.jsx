@@ -1,25 +1,32 @@
 import React, { useState } from 'react';
 import { Calculator, X, Check } from 'lucide-react';
 
+const ACTIVITY_LEVELS = {
+  low: { label: 'Wenig', description: 'Überwiegend sitzend, Bürojob', factor: 1.2, emoji: '🪑' },
+  moderate: { label: 'Mäßig', description: 'Normaler Alltag, etwas Gehen', factor: 1.4, emoji: '🚶' },
+  high: { label: 'Viel', description: 'Aktiver Alltag, viel auf den Beinen', factor: 1.6, emoji: '🏃' },
+};
+
 const CalorieCalculator = ({ onClose, onAccept }) => {
   const [calculatorData, setCalculatorData] = useState({
     gender: 'male',
     age: '',
     weight: '',
     height: '',
-    activity: '1.2',
+    activityLevel: 'moderate',
     goal: 'maintain'
   });
-  const [calculatedGoal, setCalculatedGoal] = useState(null);
+  const [result, setResult] = useState(null);
 
   const calculateCalorieGoal = () => {
-    const { gender, age, weight, height, activity, goal } = calculatorData;
+    const { gender, age, weight, height, activityLevel, goal } = calculatorData;
 
     if (!age || !weight || !height) {
       alert('Bitte fülle alle Felder aus!');
       return;
     }
 
+    // Mifflin-St Jeor Formel für Grundumsatz (BMR)
     let bmr;
     if (gender === 'male') {
       bmr = (10 * parseFloat(weight)) + (6.25 * parseFloat(height)) - (5 * parseInt(age)) + 5;
@@ -27,20 +34,39 @@ const CalorieCalculator = ({ onClose, onAccept }) => {
       bmr = (10 * parseFloat(weight)) + (6.25 * parseFloat(height)) - (5 * parseInt(age)) - 161;
     }
 
-    let tdee = bmr * parseFloat(activity);
+    // Grundumsatz + Alltagsbewegung (OHNE Sport)
+    const activityFactor = ACTIVITY_LEVELS[activityLevel].factor;
+    const dailyBase = Math.round(bmr * activityFactor);
 
+    // Kalorienziel je nach Ziel
+    let calorieGoal = dailyBase;
     if (goal === 'lose') {
-      tdee -= 500;
+      calorieGoal -= 500;
     } else if (goal === 'gain') {
-      tdee += 500;
+      calorieGoal += 500;
     }
 
-    setCalculatedGoal(Math.round(tdee));
+    setResult({
+      bmr: Math.round(bmr),
+      dailyBase,
+      calorieGoal: Math.round(calorieGoal),
+      activityLevel,
+    });
   };
 
   const acceptCalculatedGoal = () => {
-    if (calculatedGoal) {
-      onAccept(calculatedGoal);
+    if (result) {
+      // Übergebe Kalorienziel UND die BMR-Daten für die Energiebilanz
+      onAccept(result.calorieGoal, {
+        bmr: result.bmr,
+        dailyBase: result.dailyBase,
+        activityLevel: result.activityLevel,
+        gender: calculatorData.gender,
+        age: parseInt(calculatorData.age),
+        weight: parseFloat(calculatorData.weight),
+        height: parseFloat(calculatorData.height),
+        goal: calculatorData.goal,
+      });
     }
   };
 
@@ -61,12 +87,14 @@ const CalorieCalculator = ({ onClose, onAccept }) => {
         </div>
 
         <div className="p-6">
-          {!calculatedGoal ? (
+          {!result ? (
             <div className="space-y-6">
               <p className="text-slate-600">
-                Beantworte die folgenden Fragen, um dein individuelles Kalorienziel zu berechnen.
+                Beantworte die folgenden Fragen, um deinen Grundumsatz und dein Kalorienziel zu berechnen.
+                Sport-Kalorien werden automatisch aus Strava hinzugerechnet.
               </p>
 
+              {/* Geschlecht */}
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">Geschlecht</label>
                 <div className="grid grid-cols-2 gap-3">
@@ -93,6 +121,7 @@ const CalorieCalculator = ({ onClose, onAccept }) => {
                 </div>
               </div>
 
+              {/* Alter */}
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">Alter (Jahre)</label>
                 <input
@@ -104,6 +133,7 @@ const CalorieCalculator = ({ onClose, onAccept }) => {
                 />
               </div>
 
+              {/* Gewicht */}
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">Gewicht (kg)</label>
                 <input
@@ -115,6 +145,7 @@ const CalorieCalculator = ({ onClose, onAccept }) => {
                 />
               </div>
 
+              {/* Größe */}
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">Größe (cm)</label>
                 <input
@@ -126,21 +157,29 @@ const CalorieCalculator = ({ onClose, onAccept }) => {
                 />
               </div>
 
+              {/* Tägliche Bewegung (ohne Sport) */}
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Aktivitätslevel</label>
-                <select
-                  value={calculatorData.activity}
-                  onChange={(e) => setCalculatorData({...calculatorData, activity: e.target.value})}
-                  className="w-full px-4 py-3 rounded-xl border-2 border-slate-200 focus:border-blue-500 focus:outline-none"
-                >
-                  <option value="1.2">Wenig/kein Sport</option>
-                  <option value="1.375">Leichter Sport (1-3 Tage/Woche)</option>
-                  <option value="1.55">Moderater Sport (3-5 Tage/Woche)</option>
-                  <option value="1.725">Intensiver Sport (6-7 Tage/Woche)</option>
-                  <option value="1.9">Sehr intensiver Sport (2x täglich)</option>
-                </select>
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Tägliche Bewegung (ohne Sport)</label>
+                <div className="grid grid-cols-3 gap-3">
+                  {Object.entries(ACTIVITY_LEVELS).map(([key, level]) => (
+                    <button
+                      key={key}
+                      onClick={() => setCalculatorData({...calculatorData, activityLevel: key})}
+                      className={`p-4 rounded-xl border-2 font-medium transition text-center ${
+                        calculatorData.activityLevel === key
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      <span className="text-2xl block mb-1">{level.emoji}</span>
+                      <span className="block font-bold">{level.label}</span>
+                      <span className="block text-xs text-slate-500 mt-1">{level.description}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
 
+              {/* Ziel */}
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">Dein Ziel</label>
                 <div className="grid grid-cols-3 gap-3">
@@ -186,26 +225,50 @@ const CalorieCalculator = ({ onClose, onAccept }) => {
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="text-center py-8">
+              <div className="text-center py-6">
                 <div className="w-24 h-24 rounded-full bg-gradient-to-br from-green-100 to-emerald-100 mx-auto mb-4 flex items-center justify-center">
                   <Check className="w-12 h-12 text-green-600" />
                 </div>
                 <p className="text-slate-600 mb-2">Dein empfohlenes Kalorienziel:</p>
-                <p className="text-6xl font-bold text-emerald-600 mono mb-2">{calculatedGoal}</p>
+                <p className="text-6xl font-bold text-emerald-600 mono mb-2">{result.calorieGoal}</p>
                 <p className="text-2xl text-slate-700 font-semibold">Kalorien pro Tag</p>
+              </div>
+
+              {/* Aufschlüsselung */}
+              <div className="bg-slate-50 rounded-2xl p-5 space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600">Grundumsatz (BMR)</span>
+                  <span className="font-bold text-slate-800 mono">{result.bmr} kcal</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-600">+ Alltagsbewegung ({ACTIVITY_LEVELS[result.activityLevel].label})</span>
+                  <span className="font-bold text-slate-800 mono">{result.dailyBase - result.bmr} kcal</span>
+                </div>
+                <div className="border-t border-slate-200 pt-3 flex justify-between items-center">
+                  <span className="text-slate-700 font-semibold">Tagesumsatz (ohne Sport)</span>
+                  <span className="font-bold text-slate-800 mono">{result.dailyBase} kcal</span>
+                </div>
+                {calculatorData.goal !== 'maintain' && (
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-slate-500">
+                      {calculatorData.goal === 'lose' ? '- Defizit zum Abnehmen' : '+ Überschuss zum Zunehmen'}
+                    </span>
+                    <span className="font-bold text-slate-600 mono">
+                      {calculatorData.goal === 'lose' ? '-500' : '+500'} kcal
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
                 <p className="text-sm text-blue-800">
-                  <strong>Hinweis:</strong> Diese Berechnung basiert auf der Mifflin-St Jeor Formel und berücksichtigt dein Geschlecht, Alter, Gewicht, Größe und Aktivitätslevel.
-                  {calculatorData.goal === 'lose' && ' Zum Abnehmen wurde ein Defizit von 500 kcal eingerechnet.'}
-                  {calculatorData.goal === 'gain' && ' Zum Zunehmen wurde ein Überschuss von 500 kcal eingerechnet.'}
+                  <strong>Hinweis:</strong> Sport-Kalorien aus deinen Strava-Aktivitäten werden automatisch in der Energiebilanz berücksichtigt und erhöhen deinen Tagesverbrauch.
                 </p>
               </div>
 
               <div className="flex gap-3">
                 <button
-                  onClick={() => setCalculatedGoal(null)}
+                  onClick={() => setResult(null)}
                   className="flex-1 py-3 rounded-xl border-2 border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold transition"
                 >
                   Neu berechnen

@@ -61,7 +61,7 @@ function formatTime(dateStr) {
   return new Date(dateStr).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 }
 
-const ActivityList = ({ user }) => {
+const ActivityList = ({ user, onActivityCalories }) => {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -75,6 +75,23 @@ const ActivityList = ({ user }) => {
       syncActivities();
     }
   }, [user?.id]);
+
+  // Kalorien an Dashboard melden wenn sich Aktivitäten ändern
+  useEffect(() => {
+    if (onActivityCalories && activities.length > 0) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const todayKcal = activities
+        .filter(a => new Date(a.start_date_local) >= today)
+        .reduce((sum, a) => sum + (a.calories || 0), 0);
+
+      const totalKcal = activities
+        .reduce((sum, a) => sum + (a.calories || 0), 0);
+
+      onActivityCalories(todayKcal, totalKcal);
+    }
+  }, [activities]);
 
   const syncActivities = async () => {
     if (!user?.isStrava || !user?.id) return;
