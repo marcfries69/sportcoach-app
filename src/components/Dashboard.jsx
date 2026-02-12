@@ -174,7 +174,7 @@ const Dashboard = ({ user, onLogout }) => {
               <Activity className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-orange-600 to-rose-600 bg-clip-text text-transparent">
-              SportCoach
+              SportCoach V1
             </h1>
           </div>
           <p className="text-slate-600">KI-gestützter Ernährungs- & Trainingscoach</p>
@@ -259,6 +259,12 @@ const Dashboard = ({ user, onLogout }) => {
           </div>
         </div>
 
+        {/* Mahlzeiten-Liste */}
+        <MealList meals={meals} onDeleteMeal={handleDeleteMeal} />
+
+        {/* Mahlzeiten-Eingabe (direkt unter der Liste) */}
+        <MealInput onMealAdded={handleMealAdded} />
+
         {/* Energiebilanz */}
         <EnergyBalance
           bodyData={bodyData}
@@ -268,12 +274,6 @@ const Dashboard = ({ user, onLogout }) => {
           fiveDayActivityKcal={fiveDayActivityKcal}
           onOpenCalculator={() => setShowCalculator(true)}
         />
-
-        {/* Mahlzeiten-Liste */}
-        <MealList meals={meals} onDeleteMeal={handleDeleteMeal} />
-
-        {/* Mahlzeiten-Eingabe (direkt unter der Liste) */}
-        <MealInput onMealAdded={handleMealAdded} />
 
         {/* Aktivitäten */}
         <ActivityList user={user} onActivityCalories={handleActivityCalories} />
