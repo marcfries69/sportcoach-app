@@ -38,13 +38,17 @@ export default async (req, context) => {
               text: `Analysiere diese Lebensmittelangabe und gib PRÄZISE Nährwerte zurück.
 
 WICHTIG - KOMBI-ERKENNUNG:
-Wenn die Eingabe SOWOHL normale Lebensmittel ALS AUCH Nahrungsergänzungsmittel (NEM/Supplements) enthält,
-TRENNE sie in separate Einträge! Gib dann ein Array "items" mit mehreren Objekten zurück.
+Wenn die Eingabe MEHRERE verschiedene Produkte enthält, TRENNE sie IMMER in separate Einträge!
+Das gilt für ALLE Kombinationen: Essen + NEM, MEHRERE NEMs, oder MEHRERE Lebensmittel.
+Gib dann ein Array "items" mit je einem Objekt pro Produkt zurück.
 
 Beispiele für Kombi-Eingaben:
 - "Proteinshake mit Kreatin" → 2 Items: Proteinshake (isSupplement: false) + Kreatin (isSupplement: true)
+- "Kreatin, Vitamin D, Omega-3" → 3 Items: Kreatin (true) + Vitamin D (true) + Omega-3 (true)
+- "Magnesium und Zink" → 2 Items: Magnesium (true) + Zink (true)
 - "Haferflocken mit Omega-3 und Vitamin D" → 3 Items: Haferflocken (false) + Omega-3 (true) + Vitamin D (true)
 - "Whey Protein Shake 30g" → 1 Item (kein Kombi): isSupplement: false, da es relevante Kalorien hat
+- "BCAA, Kreatin und Glutamin" → 3 Items: BCAA (true) + Kreatin (true) + Glutamin (true)
 
 WICHTIG - Beachte diese typischen Nährwertprofile:
 - Nüsse: WENIG Kohlenhydrate (5-15g/100g), VIEL Fett (45-70g/100g), moderate Protein (15-25g/100g)
@@ -69,7 +73,7 @@ Reine NEM mit unter 50 kcal (z.B. 5g Kreatin = ~0 kcal): isSupplement: true.
 
 Antworte NUR mit JSON (kein Markdown!).
 
-WENN Kombi-Eingabe (Essen + NEM gemischt):
+WENN MEHRERE Produkte erkannt (egal ob Essen+NEM, mehrere NEMs, oder mehrere Lebensmittel):
 {
   "isMulti": true,
   "items": [
@@ -90,7 +94,7 @@ WENN Kombi-Eingabe (Essen + NEM gemischt):
   ]
 }
 
-WENN KEIN Kombi (nur Essen ODER nur NEM):
+WENN NUR EIN einzelnes Produkt (z.B. "500g Hähnchen" oder "Kreatin"):
 {
   "isMulti": false,
   "name": "Name",
