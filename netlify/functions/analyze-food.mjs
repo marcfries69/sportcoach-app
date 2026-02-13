@@ -37,18 +37,17 @@ export default async (req, context) => {
             parts: [{
               text: `Analysiere diese Lebensmittelangabe und gib PRÄZISE Nährwerte zurück.
 
-WICHTIG - KOMBI-ERKENNUNG:
-Wenn die Eingabe MEHRERE verschiedene Produkte enthält, TRENNE sie IMMER in separate Einträge!
-Das gilt für ALLE Kombinationen: Essen + NEM, MEHRERE NEMs, oder MEHRERE Lebensmittel.
-Gib dann ein Array "items" mit je einem Objekt pro Produkt zurück.
+WICHTIG - TRENN-LOGIK:
+1. MEHRERE LEBENSMITTEL (kein NEM dabei) = EINE Mahlzeit mit allen Zutaten als components.
+   Beispiel: "Hähnchen, Reis und Brokkoli" → 1 Item mit 3 components, isSupplement: false
+2. LEBENSMITTEL + NEM gemischt = Lebensmittel als EINE Mahlzeit + jedes NEM als SEPARATES Item.
+   Beispiel: "Proteinshake mit Kreatin" → 2 Items: Proteinshake (false) + Kreatin (true)
+   Beispiel: "Haferflocken mit Omega-3 und Vitamin D" → 3 Items: Haferflocken (false, 1 Mahlzeit) + Omega-3 (true) + Vitamin D (true)
+3. NUR NEMs = Jedes NEM als SEPARATES Item.
+   Beispiel: "Kreatin, Vitamin D, Omega-3" → 3 Items: je ein NEM
+   Beispiel: "Magnesium und Zink" → 2 Items: je ein NEM
 
-Beispiele für Kombi-Eingaben:
-- "Proteinshake mit Kreatin" → 2 Items: Proteinshake (isSupplement: false) + Kreatin (isSupplement: true)
-- "Kreatin, Vitamin D, Omega-3" → 3 Items: Kreatin (true) + Vitamin D (true) + Omega-3 (true)
-- "Magnesium und Zink" → 2 Items: Magnesium (true) + Zink (true)
-- "Haferflocken mit Omega-3 und Vitamin D" → 3 Items: Haferflocken (false) + Omega-3 (true) + Vitamin D (true)
-- "Whey Protein Shake 30g" → 1 Item (kein Kombi): isSupplement: false, da es relevante Kalorien hat
-- "BCAA, Kreatin und Glutamin" → 3 Items: BCAA (true) + Kreatin (true) + Glutamin (true)
+REGEL: Lebensmittel werden zu EINER Mahlzeit zusammengefasst. NEMs werden IMMER einzeln aufgelistet.
 
 WICHTIG - Beachte diese typischen Nährwertprofile:
 - Nüsse: WENIG Kohlenhydrate (5-15g/100g), VIEL Fett (45-70g/100g), moderate Protein (15-25g/100g)
@@ -73,16 +72,19 @@ Reine NEM mit unter 50 kcal (z.B. 5g Kreatin = ~0 kcal): isSupplement: true.
 
 Antworte NUR mit JSON (kein Markdown!).
 
-WENN MEHRERE Produkte erkannt (egal ob Essen+NEM, mehrere NEMs, oder mehrere Lebensmittel):
+WENN mindestens ein NEM enthalten ist ODER nur NEMs:
 {
   "isMulti": true,
   "items": [
     {
-      "name": "Name des Lebensmittels",
+      "name": "Zusammengefasster Name der Mahlzeit (z.B. Hähnchen mit Reis)",
       "isSupplement": false,
       "healthScore": 2,
       "healthExplanation": "Erklärung",
-      "components": [{ "name": "...", "amount": "...", "kcal": 120, "protein": 25, "carbs": 3, "fat": 1, "fiber": 0 }]
+      "components": [
+        { "name": "Hähnchenbrust", "amount": "200g", "kcal": 330, "protein": 62, "carbs": 0, "fat": 7, "fiber": 0 },
+        { "name": "Reis", "amount": "150g", "kcal": 195, "protein": 4, "carbs": 43, "fat": 0.5, "fiber": 1 }
+      ]
     },
     {
       "name": "Kreatin",
@@ -93,12 +95,26 @@ WENN MEHRERE Produkte erkannt (egal ob Essen+NEM, mehrere NEMs, oder mehrere Leb
     }
   ]
 }
+Hinweis: Wenn NUR NEMs eingegeben werden (kein Essen), enthält items nur NEM-Objekte, kein Mahlzeit-Objekt.
+
+WENN NUR Lebensmittel (KEIN NEM):
+{
+  "isMulti": false,
+  "name": "Zusammengefasster Mahlzeitname",
+  "isSupplement": false,
+  "healthScore": 2,
+  "healthExplanation": "Erklärung",
+  "components": [
+    { "name": "Zutat 1", "amount": "200g", "kcal": 120, "protein": 25, "carbs": 3, "fat": 1, "fiber": 0 },
+    { "name": "Zutat 2", "amount": "100g", "kcal": 80, "protein": 2, "carbs": 15, "fat": 1, "fiber": 3 }
+  ]
+}
 
 WENN NUR EIN einzelnes Produkt (z.B. "500g Hähnchen" oder "Kreatin"):
 {
   "isMulti": false,
   "name": "Name",
-  "isSupplement": false,
+  "isSupplement": true/false,
   "healthScore": 2,
   "healthExplanation": "Erklärung",
   "components": [{ "name": "...", "amount": "...", "kcal": 120, "protein": 25, "carbs": 3, "fat": 1, "fiber": 0 }]

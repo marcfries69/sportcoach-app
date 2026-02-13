@@ -29,29 +29,54 @@ const MealInput = ({ onMealAdded }) => {
 
     try {
       const nutrition = await analyzeFoodWithGemini(userInput);
+      const now = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 
-      // Multi-Item: Kombi-Eingabe wie "Proteinshake mit Kreatin" → getrennte Einträge
-      if (nutrition.isMulti && nutrition.items && nutrition.items.length > 1) {
-        for (const item of nutrition.items) {
-          const newMeal = {
+      if (nutrition.isMulti && nutrition.items && nutrition.items.length > 0) {
+        // Multi-Item: Essen zu einer Mahlzeit zusammenfassen, NEMs einzeln
+        const foodItems = nutrition.items.filter(i => !i.isSupplement);
+        const supItems = nutrition.items.filter(i => i.isSupplement);
+
+        // Essen-Items zu EINER Mahlzeit zusammenfassen
+        if (foodItems.length > 0) {
+          // Mehrere Essen-Items: Nährwerte summieren, components zusammenführen
+          const mergedMeal = {
             id: Date.now() + Math.random(),
-            time: new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
-            ...item
+            time: now,
+            name: foodItems.length === 1
+              ? foodItems[0].name
+              : foodItems.map(f => f.name).join(', '),
+            kcal: foodItems.reduce((s, f) => s + (f.kcal || 0), 0),
+            protein: foodItems.reduce((s, f) => s + (f.protein || 0), 0),
+            carbs: foodItems.reduce((s, f) => s + (f.carbs || 0), 0),
+            fat: foodItems.reduce((s, f) => s + (f.fat || 0), 0),
+            fiber: foodItems.reduce((s, f) => s + (f.fiber || 0), 0),
+            components: foodItems.flatMap(f => f.components || []),
+            healthScore: foodItems[0].healthScore || 3,
+            healthExplanation: foodItems[0].healthExplanation || '',
+            isSupplement: false,
           };
+          onMealAdded(mergedMeal);
+        }
 
-          // Supplements mit >50 kcal werden als Mahlzeit gezählt (Kalorien zählen)
-          if (item.isSupplement && item.kcal > 50) {
-            newMeal.isSupplement = false;
+        // Jedes NEM als separaten Eintrag anlegen
+        for (const sup of supItems) {
+          const newSup = {
+            id: Date.now() + Math.random(),
+            time: now,
+            ...sup,
+          };
+          // NEM mit >50 kcal zählt als Mahlzeit
+          if (sup.kcal > 50) {
+            newSup.isSupplement = false;
           }
-
-          onMealAdded(newMeal);
+          onMealAdded(newSup);
         }
       } else {
-        // Einzelnes Item
+        // Einzelnes Item (kein Multi)
         const newMeal = {
           id: Date.now(),
-          time: new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }),
-          ...nutrition
+          time: now,
+          ...nutrition,
         };
 
         // Supplements mit >50 kcal werden als Mahlzeit gezählt
