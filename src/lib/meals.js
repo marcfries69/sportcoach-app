@@ -31,20 +31,26 @@ export async function loadMeals(userId, date = getTodayDate()) {
   }
 
   // DB snake_case → Frontend camelCase
-  const meals = data.map(row => ({
-    id: row.id,
-    time: row.time,
-    name: row.name,
-    kcal: row.kcal,
-    protein: row.protein,
-    carbs: row.carbs,
-    fat: row.fat,
-    fiber: row.fiber,
-    healthScore: row.health_score,
-    healthExplanation: row.health_explanation,
-    components: row.components || [],
-    isSupplement: row.is_supplement || false,
-  }));
+  const meals = data.map(row => {
+    const components = row.components || [];
+    // Menge aus components extrahieren (für Supplement-Anzeige)
+    const amount = components.map(c => c.amount).filter(Boolean).join(', ') || null;
+    return {
+      id: row.id,
+      time: row.time,
+      name: row.name,
+      amount,
+      kcal: row.kcal,
+      protein: row.protein,
+      carbs: row.carbs,
+      fat: row.fat,
+      fiber: row.fiber,
+      healthScore: row.health_score,
+      healthExplanation: row.health_explanation,
+      components,
+      isSupplement: row.is_supplement || false,
+    };
+  });
 
   return { data: meals, error: null };
 }
@@ -132,21 +138,26 @@ export async function loadMealsForRange(userId, days = 5) {
     return { data: null, error: error.message };
   }
 
-  const meals = data.map(row => ({
-    id: row.id,
-    time: row.time,
-    date: row.meal_date,
-    name: row.name,
-    kcal: row.kcal,
-    protein: row.protein,
-    carbs: row.carbs,
-    fat: row.fat,
-    fiber: row.fiber,
-    healthScore: row.health_score,
-    healthExplanation: row.health_explanation,
-    components: row.components || [],
-    isSupplement: row.is_supplement || false,
-  }));
+  const meals = data.map(row => {
+    const components = row.components || [];
+    const amount = components.map(c => c.amount).filter(Boolean).join(', ') || null;
+    return {
+      id: row.id,
+      time: row.time,
+      date: row.meal_date,
+      name: row.name,
+      amount,
+      kcal: row.kcal,
+      protein: row.protein,
+      carbs: row.carbs,
+      fat: row.fat,
+      fiber: row.fiber,
+      healthScore: row.health_score,
+      healthExplanation: row.health_explanation,
+      components,
+      isSupplement: row.is_supplement || false,
+    };
+  });
 
   return { data: meals, error: null };
 }

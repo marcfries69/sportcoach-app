@@ -27,8 +27,13 @@ const SupplementList = ({ supplements, onDeleteSupplement }) => {
               <span className="text-lg">💊</span>
               <div>
                 <p className="font-semibold text-slate-800 text-sm">{sup.name}</p>
-                <div className="flex items-center gap-2 mt-0.5">
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                   <span className="text-xs text-slate-500 mono">{sup.time}</span>
+                  {sup.amount && (
+                    <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 text-xs font-medium mono">
+                      {sup.amount}
+                    </span>
+                  )}
                   {sup.kcal > 0 && (
                     <span className="px-2 py-0.5 rounded-full bg-teal-100 text-teal-700 text-xs font-medium mono">
                       {Math.round(sup.kcal)} kcal

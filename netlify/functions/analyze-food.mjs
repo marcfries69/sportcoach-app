@@ -133,8 +133,12 @@ WENN NUR EIN einzelnes Produkt (z.B. "500g Hähnchen" oder "Kreatin"):
           fiber: acc.fiber + (comp.fiber || 0)
         }), { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
 
+        // Menge aus components extrahieren (z.B. "5g", "1000 IU")
+        const amount = (item.components || []).map(c => c.amount).filter(Boolean).join(', ') || null;
+
         return {
           name: item.name,
+          amount,
           ...totals,
           components: item.components,
           healthScore: item.healthScore || 3,
@@ -160,8 +164,12 @@ WENN NUR EIN einzelnes Produkt (z.B. "500g Hähnchen" oder "Kreatin"):
       fiber: acc.fiber + (comp.fiber || 0)
     }), { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
 
+    // Menge aus components extrahieren
+    const amount = (source.components || []).map(c => c.amount).filter(Boolean).join(', ') || null;
+
     const result = {
       name: source.name,
+      amount,
       ...totals,
       components: source.components,
       healthScore: source.healthScore || 3,
