@@ -105,3 +105,63 @@ export async function saveBodyData(userId, bodyData) {
 
   return { error: error?.message || null };
 }
+
+/**
+ * Lädt die Makro-Ziele eines Users (vom KI-Coach akzeptiert).
+ */
+export async function loadMacroTargets(userId) {
+  if (!supabase) {
+    return { data: null, error: null };
+  }
+
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('macro_target_protein, macro_target_carbs, macro_target_fat, macro_target_fiber')
+    .eq('id', userId)
+    .single();
+
+  if (error) {
+    console.error('loadMacroTargets error:', error);
+    return { data: null, error: error.message };
+  }
+
+  if (!data.macro_target_protein && !data.macro_target_carbs) {
+    return { data: null, error: null };
+  }
+
+  return {
+    data: {
+      protein: data.macro_target_protein,
+      carbs: data.macro_target_carbs,
+      fat: data.macro_target_fat,
+      fiber: data.macro_target_fiber,
+    },
+    error: null,
+  };
+}
+
+/**
+ * Speichert vom KI-Coach empfohlene Makro-Ziele.
+ */
+export async function saveMacroTargets(userId, targets) {
+  if (!supabase) {
+    return { error: null };
+  }
+
+  const { error } = await supabase
+    .from('user_profiles')
+    .update({
+      macro_target_protein: targets.protein,
+      macro_target_carbs: targets.carbs,
+      macro_target_fat: targets.fat,
+      macro_target_fiber: targets.fiber,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', userId);
+
+  if (error) {
+    console.error('saveMacroTargets error:', error);
+  }
+
+  return { error: error?.message || null };
+}

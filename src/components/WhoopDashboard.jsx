@@ -34,7 +34,7 @@ const RecoveryColor = ({ score }) => {
   return 'text-red-600';
 };
 
-const WhoopDashboard = ({ user }) => {
+const WhoopDashboard = ({ user, onWhoopData }) => {
   const [connected, setConnected] = useState(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -82,6 +82,10 @@ const WhoopDashboard = ({ user }) => {
       } else if (result.connected === true) {
         setConnected(true);
         setData(result);
+        // Whoop-Daten an Parent melden (für KI-Coach)
+        if (onWhoopData) {
+          onWhoopData(result);
+        }
       } else if (result.error) {
         setError(result.error);
         setConnected(false);

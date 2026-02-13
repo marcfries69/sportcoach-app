@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, TrendingUp, Calculator, LogOut, LayoutDashboard, Brain, Heart } from 'lucide-react';
+import { Activity, TrendingUp, Calculator, LogOut, LayoutDashboard, Brain, Heart, Map } from 'lucide-react';
 import MealInput from './MealInput';
 import MealList from './MealList';
 import SupplementList from './SupplementList';
@@ -9,8 +9,9 @@ import ActivityList from './ActivityList';
 import NutritionCoach from './NutritionCoach';
 import RedSWarning from './RedSWarning';
 import WhoopDashboard from './WhoopDashboard';
+import TrainingRoutes from './TrainingRoutes';
 import { loadMeals, saveMeal, deleteMeal, loadMealsForRange } from '../lib/meals';
-import { loadCalorieGoal, saveCalorieGoal, loadBodyData, saveBodyData } from '../lib/userSettings';
+import { loadCalorieGoal, saveCalorieGoal, loadBodyData, saveBodyData, loadMacroTargets } from '../lib/userSettings';
 
 const Dashboard = ({ user, onLogout }) => {
   const [allMeals, setAllMeals] = useState([]);
@@ -34,6 +35,10 @@ const Dashboard = ({ user, onLogout }) => {
   const [fiveDayMealKcal, setFiveDayMealKcal] = useState(0);
   // Aktivitäten-Daten für Coach
   const [activities, setActivities] = useState([]);
+  // Whoop-Daten für KI-Coach
+  const [whoopData, setWhoopData] = useState(null);
+  // Makro-Ziele (vom KI-Coach akzeptiert)
+  const [macroTargets, setMacroTargets] = useState(null);
 
   // Meals und Supplements trennen
   const meals = allMeals.filter(m => !m.isSupplement);
@@ -44,11 +49,12 @@ const Dashboard = ({ user, onLogout }) => {
     const loadData = async () => {
       setLoading(true);
       try {
-        const [mealsResult, goalResult, bodyResult, fiveDayMealsResult] = await Promise.all([
+        const [mealsResult, goalResult, bodyResult, fiveDayMealsResult, macroResult] = await Promise.all([
           loadMeals(user.id),
           loadCalorieGoal(user.id),
           loadBodyData(user.id),
           loadMealsForRange(user.id, 5),
+          loadMacroTargets(user.id),
         ]);
 
         if (mealsResult.data) {
@@ -64,6 +70,10 @@ const Dashboard = ({ user, onLogout }) => {
             .filter(m => !m.isSupplement)
             .reduce((sum, m) => sum + (m.kcal || 0), 0);
           setFiveDayMealKcal(fiveDayKcal);
+        }
+        // Makro-Ziele laden
+        if (macroResult.data) {
+          setMacroTargets(macroResult.data);
         }
       } catch (err) {
         console.error('Daten laden fehlgeschlagen:', err);
@@ -170,6 +180,16 @@ const Dashboard = ({ user, onLogout }) => {
     if (activityData) setActivities(activityData);
   };
 
+  // Callback von WhoopDashboard: Whoop-Daten für KI-Coach
+  const handleWhoopData = (data) => {
+    setWhoopData(data);
+  };
+
+  // Callback von NutritionCoach: Makro-Ziele akzeptiert
+  const handleMacroTargetsAccepted = (targets) => {
+    setMacroTargets(targets);
+  };
+
   const totals = meals.reduce((acc, meal) => ({
     kcal: acc.kcal + (meal.kcal || 0),
     protein: acc.protein + (meal.protein || 0),
@@ -188,6 +208,54 @@ const Dashboard = ({ user, onLogout }) => {
       </div>
     );
   }
+
+  // Makro-Fortschritt Komponente
+  const MacroProgressBars = () => {
+    if (!macroTargets) return null;
+
+    const macros = [
+      { key: 'protein', label: 'Protein', current: totals.protein, target: macroTargets.protein, color: 'blue' },
+      { key: 'carbs', label: 'Kohlenhydrate', current: totals.carbs, target: macroTargets.carbs, color: 'amber' },
+      { key: 'fat', label: 'Fett', current: totals.fat, target: macroTargets.fat, color: 'purple' },
+      { key: 'fiber', label: 'Ballaststoffe', current: totals.fiber, target: macroTargets.fiber, color: 'green' },
+    ];
+
+    const colorMap = {
+      blue: { bar: 'bg-blue-400', text: 'text-blue-600', bg: 'bg-blue-50' },
+      amber: { bar: 'bg-amber-400', text: 'text-amber-600', bg: 'bg-amber-50' },
+      purple: { bar: 'bg-purple-400', text: 'text-purple-600', bg: 'bg-purple-50' },
+      green: { bar: 'bg-green-400', text: 'text-green-600', bg: 'bg-green-50' },
+    };
+
+    return (
+      <div className="glass rounded-3xl p-6 mb-6 shadow-xl">
+        <h4 className="text-sm font-semibold text-slate-600 uppercase tracking-wide mb-4">Makro-Tagesziele</h4>
+        <div className="space-y-3">
+          {macros.map(({ key, label, current, target, color }) => {
+            if (!target) return null;
+            const pct = Math.min((current / target) * 100, 100);
+            const c = colorMap[color];
+            return (
+              <div key={key}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className={`text-xs font-semibold ${c.text}`}>{label}</span>
+                  <span className="text-xs text-slate-500 font-medium">
+                    {Math.round(current)}g / {Math.round(target)}g
+                  </span>
+                </div>
+                <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full ${c.bar} rounded-full transition-all duration-500`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-orange-50 to-rose-50 p-4 md:p-8 font-sans">
@@ -239,18 +307,19 @@ const Dashboard = ({ user, onLogout }) => {
               <Activity className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-orange-600 to-rose-600 bg-clip-text text-transparent">
-              SportCoach V2
+              SportCoach V3
             </h1>
           </div>
           <p className="text-slate-600 text-sm">KI-gestützter Ernährungs- & Trainingscoach</p>
         </div>
 
         {/* Tab-Navigation */}
-        <div className="flex gap-2 mb-6 bg-white/50 rounded-2xl p-1.5 backdrop-blur-sm border border-white/60">
+        <div className="flex gap-1.5 mb-6 bg-white/50 rounded-2xl p-1.5 backdrop-blur-sm border border-white/60 overflow-x-auto">
           {[
             { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
             { id: 'coach', label: 'KI-Coach', icon: Brain },
             { id: 'whoop', label: 'Whoop', icon: Heart },
+            { id: 'routes', label: 'Strecken', icon: Map },
           ].map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -258,14 +327,14 @@ const Dashboard = ({ user, onLogout }) => {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-sm font-semibold transition-all ${
+                className={`flex-1 flex items-center justify-center gap-1.5 py-3 px-3 rounded-xl text-sm font-semibold transition-all whitespace-nowrap ${
                   isActive
                     ? 'bg-gradient-to-r from-orange-500 to-rose-500 text-white shadow-lg'
                     : 'text-slate-500 hover:text-slate-700 hover:bg-white/60'
                 }`}
               >
                 <Icon className="w-4 h-4" />
-                {tab.label}
+                <span className="hidden sm:inline">{tab.label}</span>
               </button>
             );
           })}
@@ -349,6 +418,9 @@ const Dashboard = ({ user, onLogout }) => {
               </div>
             </div>
 
+            {/* Makro-Fortschrittsbalken (nur sichtbar wenn Ziele gesetzt) */}
+            <MacroProgressBars />
+
             {/* Mahlzeiten-Liste */}
             <MealList meals={meals} onDeleteMeal={handleDeleteMeal} />
 
@@ -389,12 +461,19 @@ const Dashboard = ({ user, onLogout }) => {
             activities={activities}
             supplements={supplements}
             bodyData={bodyData}
+            whoopData={whoopData}
+            onMacroTargetsAccepted={handleMacroTargetsAccepted}
           />
         )}
 
         {/* === WHOOP TAB === */}
         {activeTab === 'whoop' && (
-          <WhoopDashboard user={user} />
+          <WhoopDashboard user={user} onWhoopData={handleWhoopData} />
+        )}
+
+        {/* === STRECKEN TAB === */}
+        {activeTab === 'routes' && (
+          <TrainingRoutes user={user} />
         )}
       </div>
 
