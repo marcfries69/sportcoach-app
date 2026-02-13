@@ -239,7 +239,7 @@ const TrainingRoutes = ({ user }) => {
           </h4>
           <div className="space-y-4">
             {runRoutes.map((route, i) => (
-              <RouteCard key={`run-${i}`} route={route} index={i} onFlyover={setFlyoverRoute} />
+              <RouteCard key={`run-${i}`} route={route} index={i} isRide={false} onFlyover={setFlyoverRoute} />
             ))}
           </div>
         </div>
@@ -253,7 +253,7 @@ const TrainingRoutes = ({ user }) => {
           </h4>
           <div className="space-y-4">
             {rideRoutes.map((route, i) => (
-              <RouteCard key={`ride-${i}`} route={route} index={i} onFlyover={setFlyoverRoute} />
+              <RouteCard key={`ride-${i}`} route={route} index={i} isRide={true} onFlyover={setFlyoverRoute} />
             ))}
           </div>
         </div>
@@ -274,7 +274,7 @@ const TrainingRoutes = ({ user }) => {
 };
 
 // === Route Card ===
-const RouteCard = ({ route, index, onFlyover }) => {
+const RouteCard = ({ route, index, isRide, onFlyover }) => {
   const [expanded, setExpanded] = useState(false);
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
@@ -351,7 +351,7 @@ const RouteCard = ({ route, index, onFlyover }) => {
             <div className="flex items-center gap-3 text-xs text-slate-500 mb-2">
               <span>{formatDistance(route.distance)}</span>
               <span>•</span>
-              <span>{route.count}x gelaufen</span>
+              <span>{route.count}x {isRide ? 'gefahren' : 'gelaufen'}</span>
             </div>
 
             {/* Bestzeit vs Letzte Zeit */}
@@ -541,26 +541,29 @@ const FlyoverModal = ({ route, onClose }) => {
   }, [route.polyline]);
 
   return (
-    <div className="fixed inset-0 z-50 bg-black">
-      {/* Map Container */}
-      <div ref={mapRef} className="w-full h-full" />
+    <div className="fixed inset-0 bg-black" style={{ zIndex: 9999 }}>
+      {/* Map Container – nimmt den ganzen Hintergrund ein */}
+      <div ref={mapRef} className="absolute inset-0" />
 
-      {/* Overlay: Route Info */}
-      <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-none">
-        <div className="bg-black/60 backdrop-blur-sm rounded-xl px-4 py-2 pointer-events-auto">
+      {/* Close Button – separat, höchster z-index, immer klickbar */}
+      <button
+        onClick={onClose}
+        style={{ zIndex: 10001, position: 'fixed', top: 16, right: 16 }}
+        className="w-12 h-12 rounded-full bg-black/70 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/90 transition-colors shadow-2xl border border-white/20"
+      >
+        <X className="w-6 h-6" />
+      </button>
+
+      {/* Route Info – unter dem Close-Button */}
+      <div style={{ zIndex: 10000, position: 'fixed', top: 16, left: 16, right: 80 }} className="pointer-events-none">
+        <div className="bg-black/70 backdrop-blur-sm rounded-xl px-4 py-2 inline-block pointer-events-auto">
           <p className="text-white font-bold text-sm">{route.name}</p>
           <p className="text-white/60 text-xs">{formatDistance(route.distance)} • Bestzeit: {formatTime(route.bestTime)}</p>
         </div>
-        <button
-          onClick={onClose}
-          className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/80 transition-colors pointer-events-auto"
-        >
-          <X className="w-5 h-5" />
-        </button>
       </div>
 
       {/* Progress Bar */}
-      <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-black/30">
+      <div style={{ zIndex: 10000, position: 'fixed', bottom: 0, left: 0, right: 0 }} className="h-1.5 bg-black/30">
         <div
           className="h-full bg-gradient-to-r from-emerald-400 to-cyan-400 transition-all"
           style={{ width: `${progress}%` }}

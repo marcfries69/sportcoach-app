@@ -2,36 +2,63 @@ import React, { useMemo } from 'react';
 import { Activity, Heart, Zap, Clock, TrendingUp } from 'lucide-react';
 
 /**
- * VO2max-Schätzung aus Laufdaten (Cooper-Formel adaptiert).
- * Filtert Läufe mit HR-Daten der letzten 90 Tage,
- * nimmt Top-3 Schätzungen, Durchschnitt, Cap bei 65.
+ * VO2max-Schätzung aus Laufdaten (Cooper-Formel + HR-Reserve-Korrektur).
+ * Logik übernommen aus trainer-analytics/src/App.jsx.
+ *
+ * 1. Filtert Läufe mit HR der letzten 90 Tage, min 3km, min 10min
+ * 2. Cooper: predicted 12min distance → VO2max
+ * 3. HR-Reserve Korrektur: extrapoliert auf Maximalleistung
+ * 4. Top-3, Durchschnitt, Cap bei 65, Min bei 30
  */
-function estimateVO2max(activities) {
+function estimateVO2max(activities, whoopData) {
   const ninetyDaysAgo = new Date();
   ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
   const validRuns = (activities || []).filter(a =>
     (a.type === 'Run' || a.type === 'VirtualRun' || a.type === 'TrailRun') &&
     a.average_heartrate &&
-    a.distance > 1000 &&
-    a.moving_time > 300 &&
+    a.distance >= 3000 &&     // Min 3km (trainer-analytics)
+    a.moving_time >= 600 &&   // Min 10min (trainer-analytics)
     new Date(a.start_date) >= ninetyDaysAgo
   );
 
   if (validRuns.length === 0) return null;
 
+  // Ruhepuls aus Whoop wenn verfügbar, sonst Schätzung
+  const restingHR = whoopData?.recoveries?.[0]?.restingHr
+    ? Math.round(whoopData.recoveries[0].restingHr)
+    : 52;
+  const maxHR = 172;
+  const hrReserve = maxHR - restingHR;
+
   const estimates = validRuns.map(run => {
+    // Pace in min/km
     const paceMinPerKm = (run.moving_time / 60) / (run.distance / 1000);
-    const predicted12min = (12 / paceMinPerKm) * 1000 * 0.92;
-    return (predicted12min - 504.9) / 44.73;
-  }).filter(v => v > 0 && v < 80);
+
+    // Riegel: Predicted 12-min distance mit 0.92 Ermüdungsfaktor
+    const predicted12MinDistance = (12 / paceMinPerKm) * 1000 * 0.92;
+
+    // Cooper: VO2max = (12-min distance - 504.9) / 44.73
+    let vo2max = (predicted12MinDistance - 504.9) / 44.73;
+
+    // HR-Reserve-Korrektur: Wenn HR < 95% der Reserve, hochrechnen
+    const workingHR = run.average_heartrate - restingHR;
+    const hrPercentage = workingHR / hrReserve;
+    if (hrPercentage > 0 && hrPercentage < 0.95) {
+      vo2max = vo2max / hrPercentage;
+    }
+
+    // Cap bei 65
+    return Math.min(65, vo2max);
+  }).filter(v => v > 30 && v <= 65);
 
   if (estimates.length === 0) return null;
 
+  // Top-3 und Durchschnitt
   estimates.sort((a, b) => b - a);
   const top3 = estimates.slice(0, 3);
   const avg = top3.reduce((a, b) => a + b, 0) / top3.length;
-  return Math.min(Math.round(avg * 10) / 10, 65);
+  return Math.round(avg);
 }
 
 function getVO2maxLevel(vo2max) {
@@ -45,24 +72,25 @@ function getVO2maxLevel(vo2max) {
 const FitnessScoreCard = ({ activities, whoopData }) => {
   const stats = useMemo(() => {
     const allActs = activities || [];
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const recent30d = allActs.filter(a => new Date(a.start_date) >= thirtyDaysAgo);
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    const recent90d = allActs.filter(a => new Date(a.start_date) >= ninetyDaysAgo);
 
-    // VO2max
-    const vo2max = estimateVO2max(allActs);
+    // VO2max mit HR-Reserve-Korrektur + Whoop-Ruhepuls
+    const vo2max = estimateVO2max(allActs, whoopData);
 
     // Ruhepuls aus Whoop
     const restingHr = whoopData?.recoveries?.[0]?.restingHr
       ? Math.round(whoopData.recoveries[0].restingHr)
       : null;
 
-    // Trainingsstunden/Woche (30d Durchschnitt)
-    const totalMovingTime = recent30d.reduce((sum, a) => sum + (a.moving_time || 0), 0);
-    const hoursPerWeek = Math.round((totalMovingTime / 3600 / 4.3) * 10) / 10;
+    // Trainingsstunden/Woche (90d Durchschnitt = ~13 Wochen)
+    const totalMovingTime = recent90d.reduce((sum, a) => sum + (a.moving_time || 0), 0);
+    const weeks = 90 / 7; // ~12.86 Wochen
+    const hoursPerWeek = Math.round((totalMovingTime / 3600 / weeks) * 10) / 10;
 
-    // Durchschnittliche Watt (Rad)
-    const rideActivities = recent30d.filter(a =>
+    // Durchschnittliche Watt (Rad) - auch 90d
+    const rideActivities = recent90d.filter(a =>
       (a.type === 'Ride' || a.type === 'VirtualRide') && a.average_watts
     );
     const avgWatts = rideActivities.length > 0
@@ -86,7 +114,7 @@ const FitnessScoreCard = ({ activities, whoopData }) => {
         </div>
         <div>
           <h3 className="text-lg font-bold text-slate-800">Fitness-Assessment</h3>
-          <p className="text-xs text-slate-400">Basierend auf deinen Trainings- und Vitaldaten</p>
+          <p className="text-xs text-slate-400">Basierend auf deinen Trainings- und Vitaldaten (90 Tage)</p>
         </div>
       </div>
 
@@ -122,7 +150,7 @@ const FitnessScoreCard = ({ activities, whoopData }) => {
             <p className="text-blue-600 text-xs font-semibold uppercase">Training/Woche</p>
           </div>
           <p className="text-2xl font-bold text-slate-900 mono">{stats.hoursPerWeek}h</p>
-          <p className="text-xs text-blue-400 mt-0.5">Ø letzte 30 Tage</p>
+          <p className="text-xs text-blue-400 mt-0.5">Ø letzte 3 Monate</p>
         </div>
 
         {/* Durchschnittliche Watt */}
@@ -133,7 +161,7 @@ const FitnessScoreCard = ({ activities, whoopData }) => {
               <p className="text-amber-600 text-xs font-semibold uppercase">Ø Watt (Rad)</p>
             </div>
             <p className="text-2xl font-bold text-slate-900 mono">{stats.avgWatts}W</p>
-            <p className="text-xs text-amber-400 mt-0.5">Ø letzte 30 Tage</p>
+            <p className="text-xs text-amber-400 mt-0.5">Ø letzte 3 Monate</p>
           </div>
         )}
       </div>

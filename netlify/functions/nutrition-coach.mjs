@@ -75,17 +75,58 @@ export default async (req, context) => {
         .join(', ');
     };
 
-    // Whoop-Zusammenfassung
+    // Whoop-Zusammenfassung – detailliert für KI-Ernährungs- und Regenerationsempfehlungen
     const summarizeWhoop = (wd) => {
       if (!wd || !wd.recoveries || wd.recoveries.length === 0) return null;
-      const latest = wd.recoveries[0];
-      const avgRecovery = wd.recoveries
-        .filter(r => r.recoveryScore != null)
-        .reduce((sum, r, _, arr) => sum + r.recoveryScore / arr.length, 0);
+      const recoveries = wd.recoveries.filter(r => r.recoveryScore != null);
+      const latest = recoveries[0];
+      const avgRecovery = recoveries.reduce((sum, r) => sum + r.recoveryScore, 0) / recoveries.length;
+
+      // Niedrige Recovery-Tage zählen (unter 34% = rot bei Whoop)
+      const lowRecoveryCount = recoveries.filter(r => r.recoveryScore < 34).length;
+      const medRecoveryCount = recoveries.filter(r => r.recoveryScore >= 34 && r.recoveryScore < 67).length;
+      const highRecoveryCount = recoveries.filter(r => r.recoveryScore >= 67).length;
+
+      // HRV-Trend
+      const hrvValues = recoveries.map(r => r.hrv).filter(v => v != null);
+      let hrvTrend = 'stabil';
+      if (hrvValues.length >= 4) {
+        const recent = hrvValues.slice(0, 3).reduce((a, b) => a + b, 0) / 3;
+        const older = hrvValues.slice(3, 7);
+        if (older.length > 0) {
+          const olderAvg = older.reduce((a, b) => a + b, 0) / older.length;
+          if (recent > olderAvg * 1.05) hrvTrend = 'steigend';
+          else if (recent < olderAvg * 0.95) hrvTrend = 'fallend';
+        }
+      }
+
+      // Strain-Daten
+      const cycles = wd.cycles || [];
+      const strainValues = cycles.map(c => c.strain).filter(v => v != null);
+      const avgStrain = strainValues.length > 0
+        ? strainValues.reduce((a, b) => a + b, 0) / strainValues.length
+        : null;
+      const highStrainDays = strainValues.filter(s => s >= 14).length;
+
+      // Schlaf
+      const sleeps = wd.sleeps || [];
+      const sleepScores = sleeps.map(s => s.sleepScore).filter(v => v != null);
+      const avgSleepScore = sleepScores.length > 0
+        ? Math.round(sleepScores.reduce((a, b) => a + b, 0) / sleepScores.length)
+        : null;
+      const sleepDurations = sleeps.map(s => s.totalSleepMs).filter(v => v != null);
+      const avgSleepHours = sleepDurations.length > 0
+        ? Math.round(sleepDurations.reduce((a, b) => a + b, 0) / sleepDurations.length / 3600000 * 10) / 10
+        : null;
+
       let summary = `Recovery heute: ${latest.recoveryScore || '?'}%, Ø7d: ${Math.round(avgRecovery)}%`;
-      if (latest.hrv) summary += `, HRV: ${Math.round(latest.hrv)}ms`;
+      summary += ` (${highRecoveryCount}x grün, ${medRecoveryCount}x gelb, ${lowRecoveryCount}x rot in 7d)`;
+      if (latest.hrv) summary += `\nHRV heute: ${Math.round(latest.hrv)}ms, Trend: ${hrvTrend}`;
       if (latest.restingHr) summary += `, Ruhepuls: ${Math.round(latest.restingHr)}bpm`;
-      if (wd.sleeps?.[0]?.sleepScore) summary += `, Schlaf-Score: ${wd.sleeps[0].sleepScore}%`;
+      if (avgStrain != null) summary += `\nØ Strain: ${avgStrain.toFixed(1)}/21, ${highStrainDays} harte Tage (Strain ≥14) in 7d`;
+      if (avgSleepScore != null) summary += `\nSchlaf: Ø Score ${avgSleepScore}%, Ø Dauer ${avgSleepHours}h`;
+      if (sleeps[0]?.respiratoryRate) summary += `, Atemfrequenz: ${sleeps[0].respiratoryRate.toFixed(1)} rpm`;
+
       return summary;
     };
 
@@ -118,6 +159,13 @@ AUFGABE:
 4. SUPPLEMENTS: Bewerte die bereits eingenommenen Supplements (Dosierung ausreichend? Sinnvoll?). Empfehle zusätzliche nur wenn nötig. Gib für JEDES Supplement eine Dosierungsempfehlung als Bandbreite an (z.B. "3-5g/Tag").
 5. TRAINING: Empfehle Trainingsfokus basierend auf dem 90-Tage-Profil (z.B. mehr Zone 2, VO2max-Intervalle, Kraft). Berücksichtige Whoop-Recovery wenn verfügbar.
 6. MAKROS: Empfehle tägliche Makroziele auf Basis der letzten 3 Monate Training inkl. Ballaststoffe.
+7. WHOOP-BASIERTE EMPFEHLUNGEN (wenn Whoop-Daten vorhanden):
+   - Bei NIEDRIGER RECOVERY (<34% oder rote Tage): Empfehle regenerationsfördernde Ernährung (mehr Kohlenhydrate, entzündungshemmende Lebensmittel wie Beeren, Kurkuma, Omega-3, Tart Cherry Juice). Empfehle Magnesium, Zink, Ashwagandha oder L-Theanin bei chronisch schlechter Recovery.
+   - Bei SCHLECHTEM SCHLAF (<70% Schlaf-Score oder <7h): Empfehle schlaffördernde Ernährung (kein Koffein nach 14 Uhr, Magnesium abends, Tryptophan-reiche Lebensmittel). Empfehle Magnesium-Glycinat, Melatonin-Mikrodosierung.
+   - Bei VIELEN HARTEN EINHEITEN (Strain ≥14 an mehreren Tagen): Empfehle erhöhte Kohlenhydratzufuhr (8-10g/kg für intensive Phasen), zusätzliches Protein innerhalb 30min nach Training, Glutamin, BCAA, Kreatin für Muskelregeneration.
+   - Bei FALLENDEM HRV-TREND: Warnung vor Übertraining, empfehle Deload-Phase, adaptogene Supplements (Rhodiola, Ashwagandha).
+   - Bei STEIGENDEM HRV-TREND + hoher Recovery: Bestätige guten Zustand, empfehle leistungssteigernde Ernährung (Beta-Alanin, Rote-Bete-Saft vor Einheiten, Koffein-Timing).
+   Integriere diese Empfehlungen in nutritionAdvice und supplementAdvice – nicht als separate Kategorie.
 
 Antworte NUR mit einem JSON-Objekt, ohne Markdown oder Erklärungen:
 {
