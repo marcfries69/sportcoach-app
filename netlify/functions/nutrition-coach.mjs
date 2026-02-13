@@ -166,6 +166,15 @@ AUFGABE:
    - Bei FALLENDEM HRV-TREND: Warnung vor Übertraining, empfehle Deload-Phase, adaptogene Supplements (Rhodiola, Ashwagandha).
    - Bei STEIGENDEM HRV-TREND + hoher Recovery: Bestätige guten Zustand, empfehle leistungssteigernde Ernährung (Beta-Alanin, Rote-Bete-Saft vor Einheiten, Koffein-Timing).
    Integriere diese Empfehlungen in nutritionAdvice und supplementAdvice – nicht als separate Kategorie.
+8. BIOLOGISCHES ALTER: Schätze das biologische Alter des Athleten basierend auf ALLEN verfügbaren Daten:
+   - VO2max (falls berechenbar aus Laufdaten): Hauptfaktor für kardiovaskuläres Alter
+   - Ruhepuls (Whoop oder Schätzung): Niedrig = jünger
+   - Trainingsvolumen und -intensität: Regelmäßiges Training = jünger
+   - Kraft/Ausdauer-Verhältnis: Gute Balance = jünger
+   - Schlafqualität (Whoop): Guter Schlaf = jünger
+   - HRV (Whoop): Hohe HRV = jünger
+   - Recovery-Scores (Whoop): Gute Recovery = jünger
+   Vergleiche mit dem chronologischen Alter und gib die Differenz an. Sei wissenschaftlich fundiert aber optimistisch.
 
 Antworte NUR mit einem JSON-Objekt, ohne Markdown oder Erklärungen:
 {
@@ -200,7 +209,12 @@ Antworte NUR mit einem JSON-Objekt, ohne Markdown oder Erklärungen:
       "reason": "Warum dieser Fokus (1 Satz)",
       "frequency": "z.B. 2-3x/Woche"
     }
-  ]
+  ],
+  "biologicalAge": {
+    "age": Zahl (geschätztes biologisches Alter),
+    "difference": Zahl (negativ = jünger als chronologisch, positiv = älter),
+    "reason": "Kurze Begründung (1-2 Sätze) welche Faktoren das biologische Alter beeinflussen"
+  }
 }`;
 
     const response = await fetch(

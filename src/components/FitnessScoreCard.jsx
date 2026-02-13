@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Activity, Heart, Zap, Clock, TrendingUp } from 'lucide-react';
+import { Activity, Heart, Zap, Clock, TrendingUp, UserCheck } from 'lucide-react';
 
 /**
  * VO2max-Schätzung aus Laufdaten (Cooper-Formel + HR-Reserve-Korrektur).
@@ -69,7 +69,7 @@ function getVO2maxLevel(vo2max) {
   return { label: 'Ausbaufähig', color: 'text-orange-600', bg: 'bg-orange-50' };
 }
 
-const FitnessScoreCard = ({ activities, whoopData }) => {
+const FitnessScoreCard = ({ activities, whoopData, biologicalAge }) => {
   const stats = useMemo(() => {
     const allActs = activities || [];
     const ninetyDaysAgo = new Date();
@@ -128,6 +128,28 @@ const FitnessScoreCard = ({ activities, whoopData }) => {
             </div>
             <p className="text-2xl font-bold text-slate-900 mono">{stats.vo2max}</p>
             <p className={`text-xs font-medium mt-0.5 ${vo2Level.color}`}>{vo2Level.label}</p>
+          </div>
+        )}
+
+        {/* Biologisches Alter (KI-Schätzung) */}
+        {biologicalAge && (
+          <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-100">
+            <div className="flex items-center gap-1.5 mb-1">
+              <UserCheck className="w-3.5 h-3.5 text-indigo-500" />
+              <p className="text-indigo-600 text-xs font-semibold uppercase">Bio. Alter</p>
+            </div>
+            <p className="text-2xl font-bold text-slate-900 mono">{biologicalAge.age}</p>
+            <p className={`text-xs font-medium mt-0.5 ${
+              biologicalAge.difference < 0 ? 'text-green-600' :
+              biologicalAge.difference > 0 ? 'text-red-600' :
+              'text-slate-500'
+            }`}>
+              {biologicalAge.difference < 0
+                ? `${Math.abs(biologicalAge.difference)} Jahre jünger`
+                : biologicalAge.difference > 0
+                ? `${biologicalAge.difference} Jahre älter`
+                : 'Entspricht Alter'}
+            </p>
           </div>
         )}
 

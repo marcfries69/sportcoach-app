@@ -108,9 +108,6 @@ const NutritionCoach = ({ user, activities, supplements, bodyData, whoopData, on
   if (!result && !loading) {
     return (
       <div className="space-y-6">
-        {/* FitnessScoreCard (wenn Aktivitäten verfügbar) */}
-        <FitnessScoreCard activities={allActivities || activities} whoopData={whoopData} />
-
         <div className="glass rounded-3xl p-6 shadow-xl">
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center">
@@ -170,8 +167,8 @@ const NutritionCoach = ({ user, activities, supplements, bodyData, whoopData, on
   // Ergebnis anzeigen
   return (
     <div className="space-y-6">
-      {/* FitnessScoreCard */}
-      <FitnessScoreCard activities={allActivities || activities} whoopData={whoopData} />
+      {/* FitnessScoreCard – nur nach Analyse sichtbar */}
+      <FitnessScoreCard activities={allActivities || activities} whoopData={whoopData} biologicalAge={result?.biologicalAge} />
 
       {/* Header + Trainings-Summary */}
       <div className="glass rounded-3xl p-6 shadow-xl">
