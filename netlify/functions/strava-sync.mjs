@@ -1,5 +1,5 @@
 // Strava Sync – Aktivitäten von Strava API laden & in Supabase speichern
-// Modi: "recent" (5d, Standard), "full" (12mo, paginiert), "db_only" (nur aus DB)
+// Modi: "recent" (7d, Standard), "full" (12mo, paginiert), "db_only" (nur aus DB)
 import { createClient } from '@supabase/supabase-js';
 import { refreshStravaToken } from './strava-refresh.mjs';
 
@@ -95,8 +95,8 @@ export default async (req, context) => {
         page++;
       }
     } else {
-      // Recent: letzte 5 Tage
-      const after = Math.floor(Date.now() / 1000) - (5 * 24 * 60 * 60);
+      // Recent: letzte 7 Tage
+      const after = Math.floor(Date.now() / 1000) - (7 * 24 * 60 * 60);
       const res = await fetch(
         `https://www.strava.com/api/v3/athlete/activities?per_page=30&after=${after}`,
         { headers: { Authorization: `Bearer ${access_token}` } }
@@ -181,7 +181,7 @@ export default async (req, context) => {
     }
 
     // Aktivitäten zurückgeben
-    const daysBack = mode === 'full' ? 365 : 5;
+    const daysBack = mode === 'full' ? 365 : 7;
     const startDate = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000).toISOString();
     const { data: savedActivities, error: fetchError } = await supabase
       .from('strava_activities')

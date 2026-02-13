@@ -140,13 +140,17 @@ const ActivityList = ({ user, onActivityCalories }) => {
     );
   }
 
-  // Zusammenfassung der letzten 5 Tage (alle geladenen Aktivitäten)
+  // Zusammenfassung der letzten 7 Tage
   const stats = {
     count: activities.length,
     duration: activities.reduce((sum, a) => sum + (a.moving_time || 0), 0),
     distance: activities.reduce((sum, a) => sum + (a.distance || 0), 0),
     calories: activities.reduce((sum, a) => sum + (a.calories || 0), 0),
   };
+
+  // 3 Detail-Cards sichtbar, Rest per Plus aufklappen
+  const visibleCount = expanded ? activities.length : 3;
+  const remainingCount = activities.length - 3;
 
   return (
     <div className="glass rounded-3xl p-6 mb-6 shadow-xl">
@@ -199,7 +203,7 @@ const ActivityList = ({ user, onActivityCalories }) => {
               <p className="text-orange-600 text-xs font-semibold uppercase tracking-wide">Trainings</p>
             </div>
             <p className="text-xl font-bold text-orange-900 mono">{stats.count}</p>
-            <p className="text-xs text-orange-500">letzte 5 Tage</p>
+            <p className="text-xs text-orange-500">letzte 7 Tage</p>
           </div>
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-3 border border-blue-100">
             <div className="flex items-center gap-1.5 mb-1">
@@ -207,7 +211,7 @@ const ActivityList = ({ user, onActivityCalories }) => {
               <p className="text-blue-600 text-xs font-semibold uppercase tracking-wide">Zeit</p>
             </div>
             <p className="text-xl font-bold text-blue-900 mono">{formatDuration(stats.duration)}</p>
-            <p className="text-xs text-blue-500">letzte 5 Tage</p>
+            <p className="text-xs text-blue-500">letzte 7 Tage</p>
           </div>
           <div className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl p-3 border border-green-100">
             <div className="flex items-center gap-1.5 mb-1">
@@ -215,7 +219,7 @@ const ActivityList = ({ user, onActivityCalories }) => {
               <p className="text-green-600 text-xs font-semibold uppercase tracking-wide">Distanz</p>
             </div>
             <p className="text-xl font-bold text-green-900 mono">{formatDistance(stats.distance)}</p>
-            <p className="text-xs text-green-500">letzte 5 Tage</p>
+            <p className="text-xs text-green-500">letzte 7 Tage</p>
           </div>
           <div className="bg-gradient-to-br from-red-50 to-rose-50 rounded-xl p-3 border border-red-100">
             <div className="flex items-center gap-1.5 mb-1">
@@ -223,7 +227,7 @@ const ActivityList = ({ user, onActivityCalories }) => {
               <p className="text-red-600 text-xs font-semibold uppercase tracking-wide">Kalorien</p>
             </div>
             <p className="text-xl font-bold text-red-900 mono">{Math.round(stats.calories)}</p>
-            <p className="text-xs text-red-500">letzte 5 Tage</p>
+            <p className="text-xs text-red-500">letzte 7 Tage</p>
           </div>
         </div>
       )}
@@ -231,14 +235,14 @@ const ActivityList = ({ user, onActivityCalories }) => {
       {/* Keine Aktivitäten */}
       {activities.length === 0 && !loading && !syncing && (
         <div className="text-center py-8">
-          <p className="text-slate-400">Keine Aktivitäten in den letzten 5 Tagen</p>
+          <p className="text-slate-400">Keine Aktivitäten in den letzten 7 Tagen</p>
           <p className="text-slate-400 text-sm mt-1">Zeichne ein Training in Strava auf!</p>
         </div>
       )}
 
-      {/* Aktivitäten-Liste */}
+      {/* Aktivitäten-Liste: 3 Detail-Cards sichtbar */}
       <div className="space-y-3">
-        {(expanded ? activities.slice(0, 10) : activities.slice(0, 3)).map((activity) => {
+        {activities.slice(0, visibleCount).map((activity) => {
           const config = getSportConfig(activity.type);
           const pace = formatPace(activity.average_speed, activity.type);
 
@@ -263,23 +267,18 @@ const ActivityList = ({ user, onActivityCalories }) => {
 
               {/* Stats Grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {/* Distanz */}
                 {activity.distance > 0 && (
                   <div className="bg-white/60 rounded-lg px-3 py-2">
                     <p className="text-xs text-slate-500 font-medium">Distanz</p>
                     <p className="text-sm font-bold text-slate-800 mono">{formatDistance(activity.distance)}</p>
                   </div>
                 )}
-
-                {/* Dauer */}
                 <div className="bg-white/60 rounded-lg px-3 py-2">
                   <p className="text-xs text-slate-500 font-medium flex items-center gap-1">
                     <Clock className="w-3 h-3" /> Dauer
                   </p>
                   <p className="text-sm font-bold text-slate-800 mono">{formatDuration(activity.moving_time)}</p>
                 </div>
-
-                {/* Pace/Speed */}
                 {pace && (
                   <div className="bg-white/60 rounded-lg px-3 py-2">
                     <p className="text-xs text-slate-500 font-medium flex items-center gap-1">
@@ -288,8 +287,6 @@ const ActivityList = ({ user, onActivityCalories }) => {
                     <p className="text-sm font-bold text-slate-800 mono">{pace}</p>
                   </div>
                 )}
-
-                {/* Höhenmeter */}
                 {activity.total_elevation_gain > 0 && (
                   <div className="bg-white/60 rounded-lg px-3 py-2">
                     <p className="text-xs text-slate-500 font-medium flex items-center gap-1">
@@ -298,8 +295,6 @@ const ActivityList = ({ user, onActivityCalories }) => {
                     <p className="text-sm font-bold text-slate-800 mono">{Math.round(activity.total_elevation_gain)} m</p>
                   </div>
                 )}
-
-                {/* Herzfrequenz */}
                 {activity.average_heartrate && (
                   <div className="bg-white/60 rounded-lg px-3 py-2">
                     <p className="text-xs text-slate-500 font-medium flex items-center gap-1">
@@ -308,8 +303,6 @@ const ActivityList = ({ user, onActivityCalories }) => {
                     <p className="text-sm font-bold text-slate-800 mono">{Math.round(activity.average_heartrate)} bpm</p>
                   </div>
                 )}
-
-                {/* Kalorien */}
                 {activity.calories && (
                   <div className="bg-white/60 rounded-lg px-3 py-2">
                     <p className="text-xs text-slate-500 font-medium flex items-center gap-1">
@@ -324,8 +317,8 @@ const ActivityList = ({ user, onActivityCalories }) => {
         })}
       </div>
 
-      {/* Expand/Collapse Button */}
-      {activities.length > 3 && (
+      {/* Plus-Button für restliche Aktivitäten */}
+      {remainingCount > 0 && (
         <button
           onClick={() => setExpanded(!expanded)}
           className="w-full mt-4 py-3 rounded-2xl border-2 border-dashed border-slate-200 hover:border-orange-300 hover:bg-orange-50 text-slate-500 hover:text-orange-600 text-sm font-medium transition-all flex items-center justify-center gap-2"
@@ -338,7 +331,7 @@ const ActivityList = ({ user, onActivityCalories }) => {
           ) : (
             <>
               <Plus className="w-4 h-4" />
-              {Math.min(activities.length - 3, 7)} weitere Aktivitäten anzeigen
+              {remainingCount} weitere {remainingCount === 1 ? 'Aktivität' : 'Aktivitäten'} anzeigen
             </>
           )}
         </button>

@@ -4,8 +4,6 @@ export default async (req, context) => {
   }
 
   try {
-    // V2 Netlify Functions: Netlify.env.get()
-    // Fallback auf process.env falls Netlify global nicht existiert
     const apiKey = typeof Netlify !== 'undefined'
       ? Netlify.env.get('GOOGLE_API_KEY')
       : process.env.GOOGLE_API_KEY;
@@ -37,7 +35,16 @@ export default async (req, context) => {
         body: JSON.stringify({
           contents: [{
             parts: [{
-              text: `Analysiere diese Lebensmittelangabe und gib PRÄZISE Nährwerte UND einen Gesundheits-Score zurück.
+              text: `Analysiere diese Lebensmittelangabe und gib PRÄZISE Nährwerte zurück.
+
+WICHTIG - KOMBI-ERKENNUNG:
+Wenn die Eingabe SOWOHL normale Lebensmittel ALS AUCH Nahrungsergänzungsmittel (NEM/Supplements) enthält,
+TRENNE sie in separate Einträge! Gib dann ein Array "items" mit mehreren Objekten zurück.
+
+Beispiele für Kombi-Eingaben:
+- "Proteinshake mit Kreatin" → 2 Items: Proteinshake (isSupplement: false) + Kreatin (isSupplement: true)
+- "Haferflocken mit Omega-3 und Vitamin D" → 3 Items: Haferflocken (false) + Omega-3 (true) + Vitamin D (true)
+- "Whey Protein Shake 30g" → 1 Item (kein Kombi): isSupplement: false, da es relevante Kalorien hat
 
 WICHTIG - Beachte diese typischen Nährwertprofile:
 - Nüsse: WENIG Kohlenhydrate (5-15g/100g), VIEL Fett (45-70g/100g), moderate Protein (15-25g/100g)
@@ -49,46 +56,48 @@ Lebensmittel: ${foodText}
 
 GESUNDHEITS-BEWERTUNG (healthScore):
 Bewerte die Mahlzeit von 1-6 basierend auf:
-- Nährstoffdichte (Vitamine, Mineralien, Ballaststoffe)
-- Verarbeitungsgrad (unverarbeitet = besser)
-- Zucker- und Salzgehalt
-- Gesunde vs. ungesunde Fette
-- Gesamtqualität der Zutaten
-
-Skala:
-1 = Sehr gesund (z.B. Gemüse, Vollkorn, unverarbeitete Lebensmittel)
-2 = Gesund (z.B. mageres Fleisch, Nüsse, Obst)
-3 = Okay (z.B. Vollkornprodukte mit etwas Zucker)
-4 = Weniger gesund (z.B. Weißmehlprodukte, moderate Verarbeitung)
-5 = Ungesund (z.B. Fast Food, frittiert, viel Zucker/Salz)
-6 = Sehr ungesund (z.B. Süßigkeiten, stark verarbeitet, Transfette)
+- Nährstoffdichte, Verarbeitungsgrad, Zucker/Salz, Fettqualität
+Skala: 1=Sehr gesund, 2=Gesund, 3=Okay, 4=Weniger gesund, 5=Ungesund, 6=Sehr ungesund
 
 GESUNDHEITS-ERKLÄRUNG (healthExplanation):
-Erkläre in 2-3 Sätzen WARUM die Mahlzeit so bewertet wurde. Sei spezifisch und erwähne positive/negative Aspekte.
+Erkläre in 2-3 Sätzen WARUM die Mahlzeit so bewertet wurde.
 
 NEM-ERKENNUNG (isSupplement):
-Prüfe ob es sich um ein Nahrungsergänzungsmittel (NEM/Supplement) handelt.
-NEM sind z.B.: Kreatin, Omega-3, Vitamin D, Magnesium, Zink, Eisen, Protein-Pulver/Whey, BCAA, EAA, Kollagen, Ashwagandha, Kurkuma-Kapseln, Elektrolyte, Multivitamin, Fischöl, Probiotika, L-Glutamin, Beta-Alanin, Koffein-Tabletten, etc.
-KEIN NEM: Normale Lebensmittel wie Obst, Gemüse, Fleisch, Milchprodukte, Brot, etc.
-Setze "isSupplement" auf true wenn es ein NEM ist, sonst false.
+NEM sind: Kreatin, Omega-3, Vitamin D, Magnesium, Zink, Eisen, BCAA, EAA, Kollagen, Ashwagandha, Kurkuma-Kapseln, Elektrolyte, Multivitamin, Fischöl, Probiotika, L-Glutamin, Beta-Alanin, Koffein-Tabletten, etc.
+Protein-Shakes/Whey mit mehr als 50 kcal sind KEIN NEM (isSupplement: false) – sie zählen als Mahlzeit.
+Reine NEM mit unter 50 kcal (z.B. 5g Kreatin = ~0 kcal): isSupplement: true.
 
-Antworte NUR mit einem JSON-Objekt in diesem exakten Format, ohne weitere Erklärungen oder Markdown:
+Antworte NUR mit JSON (kein Markdown!).
+
+WENN Kombi-Eingabe (Essen + NEM gemischt):
 {
-  "name": "Beschreibender Name der Mahlzeit",
-  "isSupplement": false,
-  "healthScore": 1-6,
-  "healthExplanation": "Erklärung warum so bewertet",
-  "components": [
+  "isMulti": true,
+  "items": [
     {
-      "name": "Einzelbestandteil 1",
-      "amount": "Mengenangabe mit Einheit",
-      "kcal": Kalorien,
-      "protein": Protein in g,
-      "carbs": Kohlenhydrate in g,
-      "fat": Fett in g,
-      "fiber": Ballaststoffe in g
+      "name": "Name des Lebensmittels",
+      "isSupplement": false,
+      "healthScore": 2,
+      "healthExplanation": "Erklärung",
+      "components": [{ "name": "...", "amount": "...", "kcal": 120, "protein": 25, "carbs": 3, "fat": 1, "fiber": 0 }]
+    },
+    {
+      "name": "Kreatin",
+      "isSupplement": true,
+      "healthScore": 1,
+      "healthExplanation": "Supplement",
+      "components": [{ "name": "Kreatin Monohydrat", "amount": "5g", "kcal": 0, "protein": 0, "carbs": 0, "fat": 0, "fiber": 0 }]
     }
   ]
+}
+
+WENN KEIN Kombi (nur Essen ODER nur NEM):
+{
+  "isMulti": false,
+  "name": "Name",
+  "isSupplement": false,
+  "healthScore": 2,
+  "healthExplanation": "Erklärung",
+  "components": [{ "name": "...", "amount": "...", "kcal": 120, "protein": 25, "carbs": 3, "fat": 1, "fiber": 0 }]
 }`
             }]
           }]
@@ -109,7 +118,37 @@ Antworte NUR mit einem JSON-Objekt in diesem exakten Format, ohne weitere Erklä
     const jsonText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const parsed = JSON.parse(jsonText);
 
-    const totals = parsed.components.reduce((acc, comp) => ({
+    // --- Multi-Item (Kombi-Eingabe): Mehrere separate Einträge ---
+    if (parsed.isMulti && parsed.items && parsed.items.length > 1) {
+      const results = parsed.items.map(item => {
+        const totals = (item.components || []).reduce((acc, comp) => ({
+          kcal: acc.kcal + (comp.kcal || 0),
+          protein: acc.protein + (comp.protein || 0),
+          carbs: acc.carbs + (comp.carbs || 0),
+          fat: acc.fat + (comp.fat || 0),
+          fiber: acc.fiber + (comp.fiber || 0)
+        }), { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
+
+        return {
+          name: item.name,
+          ...totals,
+          components: item.components,
+          healthScore: item.healthScore || 3,
+          healthExplanation: item.healthExplanation || '',
+          isSupplement: item.isSupplement || false,
+        };
+      });
+
+      return new Response(
+        JSON.stringify({ isMulti: true, items: results }),
+        { status: 200, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } }
+      );
+    }
+
+    // --- Einzelnes Item (wie bisher) ---
+    const source = parsed.isMulti && parsed.items ? parsed.items[0] : parsed;
+
+    const totals = (source.components || []).reduce((acc, comp) => ({
       kcal: acc.kcal + (comp.kcal || 0),
       protein: acc.protein + (comp.protein || 0),
       carbs: acc.carbs + (comp.carbs || 0),
@@ -118,12 +157,12 @@ Antworte NUR mit einem JSON-Objekt in diesem exakten Format, ohne weitere Erklä
     }), { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 });
 
     const result = {
-      name: parsed.name,
+      name: source.name,
       ...totals,
-      components: parsed.components,
-      healthScore: parsed.healthScore || 3,
-      healthExplanation: parsed.healthExplanation || 'Keine Bewertung verfügbar',
-      isSupplement: parsed.isSupplement || false
+      components: source.components,
+      healthScore: source.healthScore || 3,
+      healthExplanation: source.healthExplanation || 'Keine Bewertung verfügbar',
+      isSupplement: source.isSupplement || false
     };
 
     return new Response(
